@@ -1,0 +1,19 @@
+# role	id	version	url	sha256
+target	workflow-basic-steps	1129.v60e3c7e6654d	https://updates.jenkins.io/download/plugins/workflow-basic-steps/1129.v60e3c7e6654d/workflow-basic-steps.hpi	2bf01de85b659efe382560237e3c49760cb6e539074e6af31afcd5e7c2787527
+target	workflow-durable-task-step	1479.v56e587f413a_7	https://updates.jenkins.io/download/plugins/workflow-durable-task-step/1479.v56e587f413a_7/workflow-durable-task-step.hpi	a0f0f1464ce3592f76d0f0079ce9fc2d4272594f995bf3d1a7ede4cd5031452e
+target	git	5.11.0	https://updates.jenkins.io/download/plugins/git/5.11.0/git.hpi	bf4639abb65e6ca210bd0d7cb9b6570e93717894bdcd008b2e7e5a916dd818f6
+target	credentials-binding	728.v902a_273b_8947	https://updates.jenkins.io/download/plugins/credentials-binding/728.v902a_273b_8947/credentials-binding.hpi	bd7d1a187e35c8e2b6619cd50f2f8c5d28aafc4ef8fd9de572fb2cfa464f466d
+target	docker-workflow	653.v2f2c08eff0ec	https://updates.jenkins.io/download/plugins/docker-workflow/653.v2f2c08eff0ec/docker-workflow.hpi	a1b594133aa231c51b3be673a994687660a39d558007f6d941ff0f91ed547742
+dep	workflow-step-api	724.v538c2362b_dfb_	https://updates.jenkins.io/download/plugins/workflow-step-api/724.v538c2362b_dfb_/workflow-step-api.hpi	887491de444174228471993b0b2db958db2e7fb577857c8516c58e9618049896
+dep	workflow-scm-step	466.va_d69e602552b_	https://updates.jenkins.io/download/plugins/workflow-scm-step/466.va_d69e602552b_/workflow-scm-step.hpi	8f35b68153ee8a671d01dcdc3d86dd47837bd2d5fcf9df8d674ff8aeecfba16a
+dep	workflow-cps	4350.vcc65d4958821	https://updates.jenkins.io/download/plugins/workflow-cps/4350.vcc65d4958821/workflow-cps.hpi	855387ac2fc8b5511876b1bd7346be6d88cf5af92937539f51ebe107b23a20c1
+dep	workflow-api	1413.v2ff1a_5e720fa_	https://updates.jenkins.io/download/plugins/workflow-api/1413.v2ff1a_5e720fa_/workflow-api.hpi	f4adbd6b34a2a0b643a12b898110bd976350142eff6322efda21efacbccb6835
+dep	workflow-support	944.v5a_859593b_98a_	https://updates.jenkins.io/download/plugins/workflow-support/944.v5a_859593b_98a_/workflow-support.hpi	fe0642e50e3b30c769c2b075a5df15828f7d0a6cbc8df9917a8db14813ba9532
+dep	scm-api	724.v7d839074eb_5c	https://updates.jenkins.io/download/plugins/scm-api/724.v7d839074eb_5c/scm-api.hpi	1d03335678ef8a5958a68b93dbd059218dd4add3984702c8f03a99b71d8a98f9
+dep	token-macro	477.vd4f0dc3cb_cf1	https://updates.jenkins.io/download/plugins/token-macro/477.vd4f0dc3cb_cf1/token-macro.hpi	ef98e47b467571e7968925ace1c40d1103baefe230f5d4cf44250769b7b6b42b
+dep	structs	362.va_b_695ef4fdf9	https://updates.jenkins.io/download/plugins/structs/362.va_b_695ef4fdf9/structs.hpi	a0a5db44f2cb082a9ec6572c088340521f033fff8c351fc7eba9ef7f07dbbf8d
+dep	matrix-project	870.v9db_fcfc2f45b_	https://updates.jenkins.io/download/plugins/matrix-project/870.v9db_fcfc2f45b_/matrix-project.hpi	01f0fc13195e7d9a0fd3ee2d22c1eae29774050c0178d05e91e87c7954e9e263
+dep	configuration-as-code	2031.veb_a_fdda_b_3ffd	https://updates.jenkins.io/download/plugins/configuration-as-code/2031.veb_a_fdda_b_3ffd/configuration-as-code.hpi	01867074cf0a6cb8362c7c31208275e4af640c059515e07d671569a0f343f1b8
+dep	cloudbees-folder	6.1100.ve9eed61d16c4	https://updates.jenkins.io/download/plugins/cloudbees-folder/6.1100.ve9eed61d16c4/cloudbees-folder.hpi	796f2ce5169f09c943743f056616759e9f51988d6b83140ec4b353cc8d6af3a0
+dep	docker-commons	477.v289085a_b_6896	https://updates.jenkins.io/download/plugins/docker-commons/477.v289085a_b_6896/docker-commons.hpi	695259df771b9182973cb0bc2f13657bd4f9e9efa9ec88ce65758e29d026fc8b
+core	jenkins-core	2.568.3	https://repo.jenkins-ci.org/releases/org/jenkins-ci/main/jenkins-core/2.568.3/jenkins-core-2.568.3.jar	39f608152bac08b402719f07591d63c254efc6553a91b5c991c513d74e4fdb19
