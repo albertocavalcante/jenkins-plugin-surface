@@ -18,12 +18,20 @@ internal object Fixtures {
         val annotations: List<String> = emptyList(),
         val body: (MethodVisitor) -> Unit = { it.visitInsn(Opcodes.RETURN) },
         val access: Int = Opcodes.ACC_PUBLIC,
+        val signature: String? = null,
+        val paramNames: List<String> = emptyList(),
     )
 
     /** An annotation with simple values: String, Boolean, Double or List of String. */
     class AnnSpec(val descriptor: String, val values: Map<String, Any> = emptyMap())
 
-    class FieldSpec(val name: String, val descriptor: String, val annotations: List<String> = emptyList())
+    class FieldSpec(
+        val name: String,
+        val descriptor: String,
+        val annotations: List<String> = emptyList(),
+        val signature: String? = null,
+        val access: Int = Opcodes.ACC_PRIVATE,
+    )
 
     fun classBytes(
         name: String,
@@ -55,12 +63,13 @@ internal object Fixtures {
             av.visitEnd()
         }
         for (f in fields) {
-            val fv = writer.visitField(Opcodes.ACC_PRIVATE, f.name, f.descriptor, null, null)
+            val fv = writer.visitField(f.access, f.name, f.descriptor, f.signature, null)
             f.annotations.forEach { fv.visitAnnotation(it, true).visitEnd() }
             fv.visitEnd()
         }
         for (m in methods) {
-            val mv = writer.visitMethod(m.access, m.name, m.descriptor, null, null)
+            val mv = writer.visitMethod(m.access, m.name, m.descriptor, m.signature, null)
+            m.paramNames.forEach { mv.visitParameter(it, 0) }
             m.annotations.forEach { mv.visitAnnotation(it, true).visitEnd() }
             mv.visitCode()
             m.body(mv)
