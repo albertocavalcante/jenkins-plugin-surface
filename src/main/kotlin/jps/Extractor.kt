@@ -20,7 +20,7 @@ internal class StaticExtractor : Extractor {
         val deps = args.deps.map { readArchive(it) }
         val census = runCensus(hpi.containers)
         val store = ClassStore(hpi.containers, deps.flatMap { it.containers } + core.containers)
-        val classifier = Classifier(store, id)
+        val classifier = Classifier(store, id, args.noHelpText)
         val records = census.extensions.map(classifier::classify)
         val unknown = records.count { it.kind == RecordKind.UNKNOWN }
         return PluginSurface(
