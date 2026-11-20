@@ -88,6 +88,7 @@ internal class ParamExtractor(private val store: ClassStore) {
             }
             for (field in c.node.fields) {
                 if (!hasAnnotation(field.visibleAnnotations, field.invisibleAnnotations, DATA_BOUND_SETTER)) continue
+                // FIXME(#11): a constructor parameter with a same-named setter stays required; unverified against Structs.
                 if (field.name in ctorNames) continue
                 setters.putIfAbsent(field.name, setterField(field, gaps))
             }

@@ -25,6 +25,7 @@ private val SHARED_DIRECTIVES: List<Pair<String, String>> =
         Types.JOB_PROPERTY_DESCRIPTOR to "options",
     )
 
+// FIXME(#11): WHEN_DESCRIPTOR and BUILD_CONDITION names are not yet verified against a real archive.
 private val DECLARATIVE_BASES: List<Pair<String, String>> =
     listOf(
         Types.AGENT_DESCRIPTOR to "agent",
