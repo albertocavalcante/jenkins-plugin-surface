@@ -184,7 +184,8 @@ internal class Classifier(private val store: ClassStore, private val pluginId: S
         val describable = record.describableClass ?: return record.copy(gaps = record.gaps + Gap("parameters", "describable-type-unresolved"))
         val result = params.parametersOf(describable)
         val step = record.step?.let { facts -> if (facts.metastep == true) facts.copy(metastepArgumentType = result.firstConstructorType) else facts }
-        return record.copy(parameters = result.parameters, gaps = record.gaps + result.gaps, step = step)
+        val metaGap = if (step?.metastep == true && step.metastepArgumentType == null) listOf(Gap("step.metastep_argument_type", "first-constructor-parameter-not-a-class")) else emptyList()
+        return record.copy(parameters = result.parameters, gaps = record.gaps + result.gaps + metaGap, step = step)
     }
 
     private fun linksFor(record: Record): List<Link> {

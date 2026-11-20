@@ -12,16 +12,12 @@ import org.objectweb.asm.Opcodes
 class ParamsTest {
     private val dbs = "Lorg/kohsuke/stapler/DataBoundSetter;"
 
-    private fun ctor(desc: String, signature: String? = null, paramNames: List<String> = emptyList(), body: (org.objectweb.asm.MethodVisitor) -> Unit = { it.visitInsn(Opcodes.RETURN) }) =
-        MethodSpec("<init>", desc, body = body, signature = signature, paramNames = paramNames)
-
     private fun extract(classes: Map<String, ByteArray>, resources: Map<String, ByteArray> = emptyMap(), target: String = "t/Step"): ParamResult {
         val container = Container("WEB-INF/lib/t.jar", classes.mapKeys { "${it.key}.class" } + resources)
         return ParamExtractor(ClassStore(listOf(container), listOf(Stubs.core()))).parametersOf(ClassName(target))
     }
 
     private fun dataBoundCtor(desc: String, signature: String? = null, paramNames: List<String> = emptyList()): MethodSpec {
-        // The annotation is attached through the classBytes method annotation list below.
         return MethodSpec("<init>", desc, annotations = listOf("Lorg/kohsuke/stapler/DataBoundConstructor;"), signature = signature, paramNames = paramNames)
     }
 
@@ -128,6 +124,40 @@ class ParamsTest {
         assertEquals(listOf("inherited"), ok.parameters.map { it.name })
         val dangling = extract(mapOf("t/Step" to Fixtures.classBytes("t/Step", superName = "gone/Base", methods = listOf(dataBoundCtor("()V")))), stapler())
         assertTrue(dangling.gaps.any { it.reason == "unresolvable-type" && it.detail == "gone/Base" })
+    }
+
+    @Test
+    fun arityMismatchBetweenStaplerFileAndConstructorIsAGap() {
+        val step = Fixtures.classBytes("t/Step", methods = listOf(dataBoundCtor("(Ljava/lang/String;)V")))
+        val result = extract(mapOf("t/Step" to step), stapler("a", "b"))
+        assertTrue(result.parameters.isEmpty())
+        assertTrue(result.gaps.any { it.reason == "names-arity-mismatch" })
+    }
+
+    @Test
+    fun twoDataBoundConstructorsAndStaticFactoriesAreGapsNotGuesses() {
+        val two = Fixtures.classBytes("t/Step", methods = listOf(dataBoundCtor("()V"), dataBoundCtor("(I)V")))
+        assertTrue(extract(mapOf("t/Step" to two), stapler()).gaps.any { it.reason == "multiple-databound-constructors" })
+        val factory = Fixtures.classBytes("t/Step", methods = listOf(MethodSpec("create", "()Lt/Step;", annotations = listOf("Lorg/kohsuke/stapler/DataBoundConstructor;"), access = Opcodes.ACC_PUBLIC or Opcodes.ACC_STATIC)))
+        assertTrue(extract(mapOf("t/Step" to factory)).gaps.any { it.reason == "static-factory-constructor-not-modelled" })
+    }
+
+    @Test
+    fun bridgeAndStaticSettersAreIgnoredAndCollectionSubtypesAreArrays() {
+        val step =
+            Fixtures.classBytes(
+                "t/Step",
+                methods =
+                    listOf(
+                        dataBoundCtor("(Ljava/util/ArrayList;)V"),
+                        MethodSpec("setBridge", "(Ljava/lang/Object;)V", annotations = listOf(dbs), access = Opcodes.ACC_PUBLIC or Opcodes.ACC_BRIDGE or Opcodes.ACC_SYNTHETIC),
+                        MethodSpec("setStatic", "(I)V", annotations = listOf(dbs), access = Opcodes.ACC_PUBLIC or Opcodes.ACC_STATIC),
+                        MethodSpec("setURL", "(Ljava/lang/String;)V", annotations = listOf(dbs)),
+                    ),
+            )
+        val result = extract(mapOf("t/Step" to step), stapler("items"))
+        assertEquals(listOf("items", "URL"), result.parameters.map { it.name })
+        assertEquals(TypeCategory.ARRAY, result.parameters[0].type.category)
     }
 
     @Test

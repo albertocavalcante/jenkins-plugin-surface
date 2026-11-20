@@ -20,7 +20,13 @@ private val ATOMIC_CLASSES: Set<String> =
         "java/lang/Short", "java/lang/Byte", "java/lang/Character", "java/net/URL", "hudson/model/Result",
     )
 
-private val COLLECTION_CLASSES: Set<String> = setOf("java/util/Collection", "java/util/List", "java/util/Set", "java/util/SortedSet")
+/** JDK collection types are leaves of the hierarchy walk, so the assignable-to-Collection set is a fixed JDK fact. */
+private val COLLECTION_CLASSES: Set<String> =
+    setOf(
+        "java/util/Collection", "java/util/List", "java/util/Set", "java/util/SortedSet", "java/util/NavigableSet", "java/util/Queue",
+        "java/util/Deque", "java/util/ArrayList", "java/util/LinkedList", "java/util/HashSet", "java/util/LinkedHashSet",
+        "java/util/TreeSet", "java/util/ArrayDeque",
+    )
 
 internal class ParamResult(val parameters: List<Parameter>, val gaps: List<Gap>, val firstConstructorType: ClassName?)
 
@@ -38,6 +44,9 @@ internal class ParamExtractor(private val store: ClassStore) {
 
         val ctors = cls.node.methods.filter { it.name == "<init>" && hasAnnotation(it.visibleAnnotations, it.invisibleAnnotations, DATA_BOUND_CONSTRUCTOR) }
         if (ctors.size > 1) gaps.add(Gap("parameters.constructor", "multiple-databound-constructors"))
+        if (cls.node.methods.any { it.name != "<init>" && hasAnnotation(it.visibleAnnotations, it.invisibleAnnotations, DATA_BOUND_CONSTRUCTOR) }) {
+            gaps.add(Gap("parameters.constructor", "static-factory-constructor-not-modelled"))
+        }
         val ctor = ctors.singleOrNull()
         if (ctor != null) {
             val sigs = methodParamSigs(ctor.signature, ctor.desc)
@@ -80,6 +89,7 @@ internal class ParamExtractor(private val store: ClassStore) {
             }
             for (method in c.node.methods) {
                 if (!hasAnnotation(method.visibleAnnotations, method.invisibleAnnotations, DATA_BOUND_SETTER)) continue
+                if ((method.access and (Opcodes.ACC_BRIDGE or Opcodes.ACC_SYNTHETIC or Opcodes.ACC_STATIC)) != 0) continue
                 if (!method.name.startsWith("set") || method.name.length < 4 || Type.getArgumentTypes(method.desc).size != 1) continue
                 val name = decapitalize(method.name.substring(3))
                 if (name in ctorNames) continue
@@ -117,7 +127,7 @@ internal class ParamExtractor(private val store: ClassStore) {
         val props = Properties()
         props.load(ByteArrayInputStream(bytes))
         val value = props.getProperty("constructor") ?: return null
-        return if (value.isBlank()) emptyList() else value.split(',').map { it.trim() }
+        return if (value.isBlank()) emptyList() else value.split(',').map { it.trim() }.dropLastWhile { it.isEmpty() }
     }
 
     private fun localVariableNames(ctor: MethodNode, arity: Int): List<String>? {
