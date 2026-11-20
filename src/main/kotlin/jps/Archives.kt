@@ -2,6 +2,7 @@
 package jps
 
 import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Path
@@ -22,20 +23,44 @@ internal class LoadedArchive(
 internal const val CLASSES_DIR: String = "WEB-INF/classes"
 private const val LIB_PREFIX: String = "WEB-INF/lib/"
 private const val CLASSES_PREFIX: String = "WEB-INF/classes/"
-private const val MAX_ENTRY_BYTES: Int = 512 * 1024 * 1024
+private const val MAX_ENTRY_BYTES: Long = 64L * 1024 * 1024
+private const val MAX_TOTAL_BYTES: Long = 400L * 1024 * 1024
+private const val MAX_ENTRIES: Int = 200_000
 
 internal fun sha256Hex(bytes: ByteArray): Sha256 =
     Sha256(MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) })
 
-private fun readZip(bytes: ByteArray, what: String): Map<String, ByteArray> {
+/** Reads one entry with a hard size cap (the declared size is unreliable for streamed entries). */
+private fun readBounded(zip: ZipInputStream, name: String, what: String, budget: LongArray): ByteArray {
+    val out = ByteArrayOutputStream()
+    val buffer = ByteArray(16 * 1024)
+    var size = 0L
+    while (true) {
+        val n = zip.read(buffer)
+        if (n < 0) break
+        size += n
+        budget[0] += n.toLong()
+        if (size > MAX_ENTRY_BYTES || budget[0] > MAX_TOTAL_BYTES) throw InputException("archive too large: $name in $what")
+        out.write(buffer, 0, n)
+    }
+    return out.toByteArray()
+}
+
+/** Reads all file entries; with [only] set, stops after that entry (identity-only reads). */
+private fun readZip(bytes: ByteArray, what: String, only: String? = null): Map<String, ByteArray> {
     val out = sortedMapOf<String, ByteArray>()
+    val budget = longArrayOf(0L)
+    var count = 0
     try {
         ZipInputStream(ByteArrayInputStream(bytes)).use { zip ->
             while (true) {
                 val entry = zip.nextEntry ?: break
                 if (entry.isDirectory) continue
-                if (entry.size > MAX_ENTRY_BYTES) throw InputException("entry too large in $what: ${entry.name}")
-                out[entry.name] = zip.readBytes()
+                if (++count > MAX_ENTRIES) throw InputException("too many entries in $what")
+                if (out.containsKey(entry.name)) throw InputException("duplicate entry ${entry.name} in $what")
+                if (only != null && entry.name != only) continue
+                out[entry.name] = readBounded(zip, entry.name, what, budget)
+                if (only != null) break
             }
         }
     } catch (e: ZipException) {
@@ -58,9 +83,10 @@ internal fun readArchive(path: Path, loadContainers: Boolean = true): LoadedArch
         } catch (e: IOException) {
             throw InputException("cannot read $fileName: ${e.message}", e)
         }
-    val top = readZip(bytes, fileName)
+    val top = readZip(bytes, fileName, only = if (loadContainers) null else "META-INF/MANIFEST.MF")
+    if (top.isEmpty() && loadContainers) throw InputException("$fileName is not a zip archive or is empty")
     val manifest = parseManifest(top["META-INF/MANIFEST.MF"])
-    val isPlugin = top.keys.any { it.startsWith(LIB_PREFIX) }
+    val isPlugin = top.keys.any { it.startsWith(LIB_PREFIX) || it.startsWith(CLASSES_PREFIX) }
     val containers = mutableListOf<Container>()
     if (loadContainers) {
         if (isPlugin) {
@@ -73,6 +99,7 @@ internal fun readArchive(path: Path, loadContainers: Boolean = true): LoadedArch
             containers.add(Container(fileName, top))
         }
     }
+    if (!loadContainers && manifest.isEmpty()) throw InputException("$fileName has no readable manifest (not a jar or plugin archive)")
     return LoadedArchive(fileName, sha256Hex(bytes), manifest, containers.sortedBy { it.path })
 }
 

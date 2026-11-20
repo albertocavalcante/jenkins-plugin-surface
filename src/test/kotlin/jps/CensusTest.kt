@@ -132,6 +132,56 @@ class CensusTest {
     }
 
     @Test
+    fun realisticSezpozLinesAreParsed() {
+        val text = "# informational; use java -jar sezpoz.jar to see authoritative contents\n" +
+            "hudson.plugins.git.GitPublisher\$DescriptorImpl{ordinal=-1.0}\n" +
+            "jenkins.plugins.git.GitUsernamePasswordBinding\$DescriptorImpl{requirePlugins=[credentials-binding]}\n" +
+            "a.Plain\n   continuation of something\n"
+        assertEquals(
+            setOf("hudson.plugins.git.GitPublisher\$DescriptorImpl", "jenkins.plugins.git.GitUsernamePasswordBinding\$DescriptorImpl", "a.Plain"),
+            parseSezpozText(text),
+        )
+    }
+
+    @Test
+    fun scanOnlyExtensionsAreStillRecordedWithProvenance() {
+        val result = runCensus(listOf(container(mapOf("a/A.class" to ext("a/A"), "a/B.class" to ext("a/B")) + Fixtures.extensionIndex("a.A"))))
+        assertEquals(listOf("a.A", "a.B"), result.extensions.map { it.key })
+        assertEquals(listOf(true, false), result.extensions.map { it.indexed })
+    }
+
+    @Test
+    fun classesOnlyPluginLayoutIsRecognised() {
+        val zip = Fixtures.zip(
+            mapOf(
+                "META-INF/MANIFEST.MF" to Fixtures.manifest("Short-Name" to "x", "Plugin-Version" to "1"),
+                "WEB-INF/classes/a/A.class" to ext("a/A"),
+                "WEB-INF/classes/META-INF/annotations/hudson.Extension.txt" to "a.A\n".toByteArray(),
+            ),
+        )
+        val dir = fixtureDir()
+        try {
+            val archive = readArchive(Fixtures.write(dir, "c.hpi", zip))
+            assertEquals(listOf(CLASSES_DIR), archive.containers.map { it.path })
+            assertTrue(runCensus(archive.containers).jars.single().agree)
+        } finally {
+            dir.toFile().deleteRecursively()
+        }
+    }
+
+    @Test
+    fun truncatedAndDuplicateArchivesAreInputErrors() {
+        val dir = fixtureDir()
+        try {
+            val good = Fixtures.hpi("demo", "1", mapOf("a/A.class" to plain("a/A")))
+            assertEquals(ExitCode.INPUT, run(dir, good.copyOf(good.size / 2)))
+            assertEquals(ExitCode.INPUT, run(dir, ByteArray(0)))
+        } finally {
+            dir.toFile().deleteRecursively()
+        }
+    }
+
+    @Test
     fun sha256MatchesKnownVector() {
         assertEquals("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad", sha256Hex("abc".toByteArray()).hex)
     }

@@ -16,7 +16,7 @@ private const val SEZPOZ_PREFIX: String = "META-INF/annotations/"
 private const val INDEXER_PREFIX: String = "META-INF/services/annotations/"
 
 /** An indexed extension: a dotted class name, optionally `Class#member` for factory methods and fields. */
-internal data class ExtensionRef(val key: String, val annotations: Set<String>, val container: String) {
+internal data class ExtensionRef(val key: String, val annotations: Set<String>, val container: String, val indexed: Boolean = true) {
     val className: String get() = key.substringBefore('#')
     val isMember: Boolean get() = '#' in key
 }
@@ -75,7 +75,7 @@ private class ScanVisitor(private val result: ScanResult) : ClassVisitor(Opcodes
 private fun scanContainer(container: Container): ScanResult {
     val result = ScanResult()
     for ((name, bytes) in container.entries) {
-        if (!name.endsWith(".class") || name.startsWith("META-INF/versions/")) continue
+        if (!name.endsWith(".class") || name.startsWith("META-INF/versions/") || name == "module-info.class") continue
         try {
             ClassReader(bytes).accept(ScanVisitor(result), ClassReader.SKIP_CODE or ClassReader.SKIP_DEBUG or ClassReader.SKIP_FRAMES)
         } catch (e: RuntimeException) {
@@ -89,7 +89,9 @@ private fun scanContainer(container: Container): ScanResult {
 /** Parses a SezPoz `.txt` sibling: one `Class` or `Class#member` per line, optionally followed by `{values}`. */
 internal fun parseSezpozText(text: String): Set<String> =
     text.lineSequence().map { it.trim() }.filter { it.isNotEmpty() && !it.startsWith("#") }
-        .map { it.substringBefore('{').trim() }.toSortedSet()
+        .map { it.substringBefore('{').trim() }.filter { SEZPOZ_KEY.matches(it) }.toSortedSet()
+
+private val SEZPOZ_KEY: Regex = Regex("[\\w.$]+(#[\\w$<>]+(\\(\\))?)?")
 
 internal fun parseIndexerText(text: String): Set<String> =
     text.lineSequence().map { it.trim() }.filter { it.isNotEmpty() && !it.startsWith("#") }.toSortedSet()
@@ -120,12 +122,16 @@ internal fun runCensus(containers: List<Container>): CensusResult {
             if (txt == null) {
                 indexedAnnotations.add(annotation)
                 files.add(IndexFileCensus(file, annotation, IndexSource.SEZPOZ_BIN_UNREADABLE, 0, scanned.size, listOf("<binary index without text sibling>"), emptyList()))
+                if (annotation in EXTENSION_ANNOTATIONS) record(found, scanned, annotation, container.path, indexed = false)
                 continue
             }
             val index = parseSezpozText(text(txt))
             indexedAnnotations.add(annotation)
             files.add(compare("$file.txt", annotation, IndexSource.SEZPOZ_TXT, index, scanned))
-            if (annotation in EXTENSION_ANNOTATIONS) record(found, index, annotation, container.path)
+            if (annotation in EXTENSION_ANNOTATIONS) {
+                record(found, index, annotation, container.path, indexed = true)
+                record(found, scanned - index, annotation, container.path, indexed = false)
+            }
         }
         for ((name, bytes) in container.entries) {
             if (!name.startsWith(INDEXER_PREFIX)) continue
@@ -138,16 +144,21 @@ internal fun runCensus(containers: List<Container>): CensusResult {
             val scanned = scan.elements[descriptorOf(annotation)].orEmpty()
             if (scanned.isEmpty()) continue
             files.add(IndexFileCensus("(no index file)", annotation, IndexSource.BYTECODE_SCAN, 0, scanned.size, emptyList(), emptyList()))
-            record(found, scanned, annotation, container.path)
+            record(found, scanned, annotation, container.path, indexed = false)
         }
         if (files.isNotEmpty()) jars.add(JarCensus(container.path, files))
     }
     return CensusResult(jars, found.values.sortedBy { it.key })
 }
 
-private fun record(found: MutableMap<String, ExtensionRef>, keys: Set<String>, annotation: String, container: String) {
+private fun record(found: MutableMap<String, ExtensionRef>, keys: Set<String>, annotation: String, container: String, indexed: Boolean) {
     for (key in keys) {
         val existing = found[key]
-        found[key] = if (existing == null) ExtensionRef(key, setOf(annotation), container) else existing.copy(annotations = existing.annotations + annotation)
+        found[key] =
+            if (existing == null) {
+                ExtensionRef(key, setOf(annotation), container, indexed)
+            } else {
+                existing.copy(annotations = existing.annotations + annotation, indexed = existing.indexed || indexed)
+            }
     }
 }
