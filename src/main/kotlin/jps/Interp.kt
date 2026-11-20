@@ -34,7 +34,7 @@ internal sealed interface V {
     data object Unknown : V
 
     /** A mutable collection or array, shared by reference like the object it models. */
-    class Coll(val items: MutableList<V> = mutableListOf()) : V
+    class Coll(val items: MutableList<V> = mutableListOf(), var tainted: Boolean = false) : V
 }
 
 internal sealed interface Eval {
@@ -75,7 +75,8 @@ internal class Interp(private val store: ClassStore) {
                 try {
                     runConstructors(start, fields)
                 } catch (_: Unsupported) {
-                    // Constructor shapes we cannot model only matter if the getter reads a field; it will then see Unknown.
+                    // A half-run constructor may have left stale values behind: forget everything it set.
+                    fields.clear()
                 }
                 return try {
                     Eval.Found(run(cls.node, method, fields, emptyList(), 0))
@@ -125,6 +126,8 @@ internal class Interp(private val store: ClassStore) {
                             if (array is V.Coll && index is V.Int) {
                                 while (array.items.size <= index.value) array.items.add(V.Unknown)
                                 array.items[index.value] = value
+                            } else if (array is V.Coll) {
+                                array.tainted = true
                             }
                         }
                         Opcodes.ARETURN, Opcodes.IRETURN -> return pop()
@@ -207,12 +210,12 @@ internal class Interp(private val store: ClassStore) {
             }
             Opcodes.GETFIELD -> {
                 val target = pop()
-                stack.addLast(if (target is V.This) fields[insn.name] ?: V.Unknown else V.Unknown)
+                stack.addLast(if (target is V.This) fields["${insn.owner}.${insn.name}"] ?: V.Unknown else V.Unknown)
             }
             Opcodes.PUTFIELD -> {
                 val value = pop()
                 val target = pop()
-                if (target is V.This) fields[insn.name] = value
+                if (target is V.This) fields["${insn.owner}.${insn.name}"] = value
             }
             Opcodes.PUTSTATIC -> pop()
             else -> throw Unsupported("opcode-${insn.opcode}")
@@ -241,19 +244,31 @@ internal class Interp(private val store: ClassStore) {
                 owner == "java/util/Collections" && name.startsWith("unmodifiable") -> args[0]
                 owner == "java/util/Collections" && name == "addAll" -> {
                     val target = args[0]
-                    if (target is V.Coll) target.items.addAll(flatten(insn.desc, args).drop(1))
+                    if (target is V.Coll) {
+                        target.items.addAll(flatten(insn.desc, args).drop(1))
+                        if (args.drop(1).any { it !is V.Coll || it.tainted }) target.tainted = true
+                    }
                     V.Int(1)
                 }
-                owner == "java/util/Arrays" && name == "asList" -> V.Coll(flatten(insn.desc, args).toMutableList())
-                owner in SET_FACTORIES && name == "of" -> V.Coll(flatten(insn.desc, args).toMutableList())
+                owner == "java/util/Arrays" && name == "asList" -> V.Coll(flatten(insn.desc, args).toMutableList(), tainted = anyTainted(args))
+                owner in SET_FACTORIES && name == "of" -> V.Coll(flatten(insn.desc, args).toMutableList(), tainted = anyTainted(args))
                 owner == "java/lang/String" && name == "valueOf" -> args[0]
-                else -> V.Unknown
+                else -> {
+                    taint(args)
+                    V.Unknown
+                }
             }
         }
         val receiver = pop()
         if (name == "<init>") {
             if (receiver is V.Coll) {
-                args.firstOrNull { it is V.Coll }?.let { receiver.items.addAll((it as V.Coll).items) }
+                val source = args.firstOrNull { it is V.Coll } as? V.Coll
+                if (source != null) {
+                    receiver.items.addAll(source.items)
+                    if (source.tainted) receiver.tainted = true
+                } else if (args.any { it !is V.Int }) {
+                    receiver.tainted = true
+                }
             } else if (receiver is V.This) {
                 val target = store.load(owner)
                 if (target != null) {
@@ -262,7 +277,8 @@ internal class Interp(private val store: ClassStore) {
                         try {
                             run(target.node, ctor, fields, args, depth + 1)
                         } catch (_: Unsupported) {
-                            // Unmodelled constructor: fields it would set stay unknown.
+                            // Unmodelled constructor: fields set before the failure are no longer trustworthy.
+                            fields.clear()
                         }
                     }
                 }
@@ -277,11 +293,23 @@ internal class Interp(private val store: ClassStore) {
                 V.Int(1)
             }
             (name == "addAll") && receiver is V.Coll && args.size == 1 -> {
-                (args[0] as? V.Coll)?.let { receiver.items.addAll(it.items) }
+                val source = args[0] as? V.Coll
+                if (source == null || source.tainted) receiver.tainted = true
+                source?.let { receiver.items.addAll(it.items) }
                 V.Int(1)
             }
-            else -> V.Unknown
+            else -> {
+                taint(args + receiver)
+                V.Unknown
+            }
         }
+    }
+
+    private fun anyTainted(values: List<V>): Boolean = values.any { it is V.Coll && it.tainted }
+
+    /** An unmodelled operation touched these collections: whatever they hold can no longer be trusted. */
+    private fun taint(values: List<V>) {
+        values.forEach { if (it is V.Coll) it.tainted = true }
     }
 
     private fun concat(insn: InvokeDynamicInsnNode, args: List<V>): V {
@@ -324,7 +352,7 @@ internal fun Eval.bool(default: Boolean?): Pair<Boolean?, String?> =
 internal fun Eval.classSet(): Pair<List<ClassName>?, String?> =
     when (this) {
         is Eval.Found -> {
-            val coll = value as? V.Coll
+            val coll = (value as? V.Coll)?.takeUnless { it.tainted }
             val names = coll?.items?.map { (it as? V.Cls)?.internalName }
             if (names == null || names.any { it == null }) null to "not-constant" else names.filterNotNull().map(::ClassName).distinct() to null
         }

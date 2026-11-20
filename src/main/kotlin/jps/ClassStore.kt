@@ -55,17 +55,25 @@ internal class ClassStore(targets: List<Container>, others: List<Container>) {
         index = map
     }
 
-    fun load(name: String): LoadedClass? =
-        loaded.getOrPut(name) {
-            val entry = index[name] ?: return@getOrPut null
-            val node = ClassNode()
-            try {
-                ClassReader(entry.bytes).accept(node, ClassReader.SKIP_FRAMES)
-            } catch (e: RuntimeException) {
-                throw InputException("unreadable class $name: ${e.message}", e)
+    /** Parses lazily. An unreadable class is treated as absent, so it surfaces as an unresolved type, never silently. */
+    fun load(name: String): LoadedClass? {
+        if (loaded.containsKey(name)) return loaded[name]
+        val entry = index[name]
+        val result =
+            if (entry == null) {
+                null
+            } else {
+                try {
+                    val node = ClassNode()
+                    ClassReader(entry.bytes).accept(node, ClassReader.SKIP_FRAMES)
+                    LoadedClass(node, entry.container, entry.target)
+                } catch (_: RuntimeException) {
+                    null
+                }
             }
-            LoadedClass(node, entry.container, entry.target)
-        }
+        loaded[name] = result
+        return result
+    }
 
     fun resource(container: Container, path: String): ByteArray? = container.entries[path]
 

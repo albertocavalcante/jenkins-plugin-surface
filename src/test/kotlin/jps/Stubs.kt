@@ -47,6 +47,10 @@ internal object Stubs {
         )
         add(GLOBAL, Fixtures.classBytes(GLOBAL, methods = listOf(superCtor("java/lang/Object")), access = Opcodes.ACC_PUBLIC or Opcodes.ACC_ABSTRACT))
         add("org/jenkinsci/plugins/structs/describable/CustomDescribableModel", Fixtures.classBytes("org/jenkinsci/plugins/structs/describable/CustomDescribableModel", access = Opcodes.ACC_PUBLIC or Opcodes.ACC_INTERFACE or Opcodes.ACC_ABSTRACT))
+        add("jenkins/tasks/SimpleBuildWrapper", Fixtures.classBytes("jenkins/tasks/SimpleBuildWrapper", methods = listOf(superCtor("java/lang/Object")), access = Opcodes.ACC_PUBLIC or Opcodes.ACC_ABSTRACT))
+        add(Types.GLOBAL_VARIABLE_SET, Fixtures.classBytes(Types.GLOBAL_VARIABLE_SET, methods = listOf(superCtor("java/lang/Object")), access = Opcodes.ACC_PUBLIC or Opcodes.ACC_ABSTRACT))
+        add(Types.AGENT_DESCRIPTOR, Fixtures.classBytes(Types.AGENT_DESCRIPTOR, superName = DESCRIPTOR, methods = listOf(superCtor(DESCRIPTOR)), access = Opcodes.ACC_PUBLIC or Opcodes.ACC_ABSTRACT))
+        add(Types.BUILD_CONDITION, Fixtures.classBytes(Types.BUILD_CONDITION, methods = listOf(superCtor("java/lang/Object")), access = Opcodes.ACC_PUBLIC or Opcodes.ACC_ABSTRACT))
         return Container("core.jar", entries)
     }
 

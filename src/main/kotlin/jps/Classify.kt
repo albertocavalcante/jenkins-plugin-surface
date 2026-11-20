@@ -36,7 +36,14 @@ internal class Classifier(private val store: ClassStore, private val pluginId: S
         val internalName = ref.className.replace('.', '/')
         val cls = store.load(internalName) ?: return unknown(skeleton, "class-not-found", ref.className)
         val closure = store.closure(internalName)
-        val withFacts = skeleton.copy(extension = extensionFacts(cls.node), dynamicDispatch = declaresDynamic(cls.node), argsRewritten = Types.CUSTOM_DESCRIBABLE_MODEL in closure)
+        val hierarchyGap = closure.unresolved.firstOrNull()?.let { listOf(Gap("flags", "unresolvable-type", it)) } ?: emptyList()
+        val withFacts =
+            skeleton.copy(
+                extension = extensionFacts(cls.node),
+                dynamicDispatch = declaresDynamic(cls.node),
+                argsRewritten = Types.CUSTOM_DESCRIBABLE_MODEL in closure,
+                gaps = hierarchyGap,
+            )
         val isDescriptor = Types.DESCRIPTOR in closure
         return when {
             Types.BUILD_CONDITION in closure && !isDescriptor ->
@@ -68,6 +75,7 @@ internal class Classifier(private val store: ClassStore, private val pluginId: S
         val (context, contextFailure) = interp.evalNoArg(internalName, "getRequiredContext", "()Ljava/util/Set;", Types.STEP_DESCRIPTOR).classSet()
         if (context == null) gaps.add(Gap("step.required_context", contextFailure ?: "unknown"))
         val describable = describableOf(cls)
+        if (describable == null) gaps.add(Gap("describable_class", "describable-type-unresolved", cls.node.name))
         val symbols = symbolsOf(cls.node) + (describable?.let { store.load(it.internal)?.node?.let(::symbolsOf) } ?: emptyList())
         val directives = SHARED_DIRECTIVES.filter { it.first in store.closure(cls.node.name) }.map { it.second }
         return finish(
@@ -163,7 +171,9 @@ internal class Classifier(private val store: ClassStore, private val pluginId: S
     private fun linksFor(record: Record): List<Link> {
         val links = mutableListOf(Link(LinkRel.PLUGIN, "https://plugins.jenkins.io/$pluginId/"))
         val javadocClass = (record.describableClass ?: record.extensionClass).internal
-        links.add(Link(LinkRel.JAVADOC, "https://javadoc.jenkins.io/plugin/$pluginId/${javadocClass.replace('$', '.')}.html"))
+        if (store.load(javadocClass)?.target == true) {
+            links.add(Link(LinkRel.JAVADOC, "https://javadoc.jenkins.io/plugin/$pluginId/${javadocClass.replace('$', '.')}.html"))
+        }
         if (record.kind == RecordKind.STEP) {
             links.add(Link(LinkRel.REFERENCE, "https://www.jenkins.io/doc/pipeline/steps/$pluginId/"))
             links.add(Link(LinkRel.CONTROLLER, "{controller}/pipeline-syntax/"))
@@ -208,21 +218,26 @@ internal class Classifier(private val store: ClassStore, private val pluginId: S
         return outer?.let { ClassName(it) }
     }
 
+    /** A class literal is accepted only as the sole argument of `super(Class)`, i.e. the instruction right before the call. */
     private fun classLiteralPassedToSuper(node: ClassNode): String? {
-        var found: String? = null
+        val found = sortedSetOf<String>()
         for (method in node.methods) {
             if (method.name != "<init>") continue
-            var lastLiteral: String? = null
+            var previous: org.objectweb.asm.tree.AbstractInsnNode? = null
             var insn = method.instructions.first
             while (insn != null) {
-                if (insn is LdcInsnNode) {
-                    val cst = insn.cst
-                    if (cst is Type && cst.sort == Type.OBJECT) lastLiteral = cst.internalName
+                if (insn.opcode >= 0) {
+                    if (insn is MethodInsnNode && insn.opcode == org.objectweb.asm.Opcodes.INVOKESPECIAL && insn.name == "<init>" &&
+                        insn.desc == "(Ljava/lang/Class;)V" && insn.owner == node.superName
+                    ) {
+                        val cst = (previous as? LdcInsnNode)?.cst
+                        if (cst is Type && cst.sort == Type.OBJECT) found.add(cst.internalName)
+                    }
+                    previous = insn
                 }
-                if (insn is MethodInsnNode && insn.name == "<init>" && insn.desc == "(Ljava/lang/Class;)V" && lastLiteral != null) found = lastLiteral
                 insn = insn.next
             }
         }
-        return found
+        return found.singleOrNull()
     }
 }

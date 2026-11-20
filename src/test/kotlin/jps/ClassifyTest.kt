@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import org.objectweb.asm.Label
 import org.objectweb.asm.Opcodes
 
 class ClassifyTest {
@@ -214,12 +215,134 @@ class ClassifyTest {
     }
 
     @Test
-    fun positiveMatchDoesNotNeedTheSupertypeArchive() {
+    fun anUnwalkableHierarchyIsNeverGuessedAsAStepButADirectSubclassIs() {
         val d = Fixtures.classBytes("t/D", superName = "elsewhere/MidDescriptorThatExtendsStepDescriptor")
         // Hierarchy cannot be walked to StepDescriptor, so this must NOT be guessed as a step.
         assertEquals(RecordKind.UNKNOWN, one(mapOf("t/D" to d), "t.D").kind)
         val direct = Fixtures.classBytes("t/E", superName = STEP_DESC, methods = listOf(Stubs.ctor(STEP_DESC), Stubs.returnString("getFunctionName", "e")))
         assertEquals(RecordKind.STEP, one(mapOf("t/E" to direct), "t.E").kind)
+    }
+
+    @Test
+    fun trueFlagsAreReadFromBytecode() {
+        val d =
+            stepDescriptor(
+                "t/D",
+                "t",
+                Stubs.returnString("getFunctionName", "d"),
+                Stubs.returnBool("isAdvanced", true),
+                Stubs.returnBool("isMetaStep", true),
+                Stubs.returnBool("takesImplicitBlockArgument", true),
+                Stubs.contextEmpty(),
+            )
+        val r = one(mapOf("t/D" to d), "t.D")
+        assertEquals(true, r.step?.advanced)
+        assertEquals(true, r.step?.metastep)
+        assertEquals(true, r.step?.takesBlock)
+    }
+
+    @Test
+    fun staleConstructorStateIsDiscardedWhenTheConstructorCannotBeModelled() {
+        val base =
+            Fixtures.classBytes(
+                "t/Base",
+                superName = STEP_DESC,
+                access = Opcodes.ACC_PUBLIC or Opcodes.ACC_ABSTRACT,
+                fields = listOf(Fixtures.FieldSpec("n", "Ljava/lang/String;")),
+                methods =
+                    listOf(
+                        MethodSpec("<init>", "()V", body = {
+                            it.visitVarInsn(Opcodes.ALOAD, 0)
+                            it.visitMethodInsn(Opcodes.INVOKESPECIAL, STEP_DESC, "<init>", "()V", false)
+                            it.visitVarInsn(Opcodes.ALOAD, 0)
+                            it.visitLdcInsn("a")
+                            it.visitFieldInsn(Opcodes.PUTFIELD, "t/Base", "n", "Ljava/lang/String;")
+                            val skip = Label()
+                            it.visitInsn(Opcodes.ICONST_1)
+                            it.visitJumpInsn(Opcodes.IFEQ, skip)
+                            it.visitVarInsn(Opcodes.ALOAD, 0)
+                            it.visitLdcInsn("b")
+                            it.visitFieldInsn(Opcodes.PUTFIELD, "t/Base", "n", "Ljava/lang/String;")
+                            it.visitLabel(skip)
+                            it.visitInsn(Opcodes.RETURN)
+                        }),
+                        MethodSpec("getFunctionName", "()Ljava/lang/String;", body = {
+                            it.visitVarInsn(Opcodes.ALOAD, 0)
+                            it.visitFieldInsn(Opcodes.GETFIELD, "t/Base", "n", "Ljava/lang/String;")
+                            it.visitInsn(Opcodes.ARETURN)
+                        }),
+                    ),
+            )
+        val sub = Fixtures.classBytes("t/Sub", superName = "t/Base", methods = listOf(Stubs.ctor("t/Base")))
+        val r = one(mapOf("t/Base" to base, "t/Sub" to sub), "t.Sub")
+        assertEquals(RecordKind.UNKNOWN, r.kind)
+    }
+
+    @Test
+    fun aCollectionTouchedByAnUnmodelledOperationIsNotReportedAsExact() {
+        val tainted =
+            MethodSpec("getRequiredContext", "()Ljava/util/Set;", body = {
+                it.visitTypeInsn(Opcodes.NEW, "java/util/HashSet")
+                it.visitInsn(Opcodes.DUP)
+                it.visitMethodInsn(Opcodes.INVOKESPECIAL, "java/util/HashSet", "<init>", "()V", false)
+                it.visitVarInsn(Opcodes.ASTORE, 1)
+                it.visitVarInsn(Opcodes.ALOAD, 1)
+                it.visitLdcInsn(org.objectweb.asm.Type.getObjectType("a/A"))
+                it.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/util/HashSet", "add", "(Ljava/lang/Object;)Z", false)
+                it.visitInsn(Opcodes.POP)
+                it.visitVarInsn(Opcodes.ALOAD, 1)
+                it.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/util/HashSet", "clear", "()V", false)
+                it.visitVarInsn(Opcodes.ALOAD, 1)
+                it.visitInsn(Opcodes.ARETURN)
+            })
+        val r = one(mapOf("t/D" to stepDescriptor("t/D", "t", Stubs.returnString("getFunctionName", "d"), tainted)), "t.D")
+        assertNull(r.step?.requiredContext)
+        assertTrue(r.gaps.any { it.field == "step.required_context" })
+    }
+
+    @Test
+    fun anUnrelatedClassLiteralArgumentIsNotTakenAsTheDescribable() {
+        val ctor =
+            MethodSpec("<init>", "()V", body = {
+                it.visitVarInsn(Opcodes.ALOAD, 0)
+                it.visitMethodInsn(Opcodes.INVOKESPECIAL, DESCRIPTOR, "<init>", "()V", false)
+                it.visitTypeInsn(Opcodes.NEW, "t/Helper")
+                it.visitInsn(Opcodes.DUP)
+                it.visitLdcInsn(org.objectweb.asm.Type.getObjectType("t/Unrelated"))
+                it.visitMethodInsn(Opcodes.INVOKESPECIAL, "t/Helper", "<init>", "(Ljava/lang/Class;)V", false)
+                it.visitInsn(Opcodes.POP)
+                it.visitInsn(Opcodes.RETURN)
+            })
+        val d = Fixtures.classBytes("t/Owner\$DescriptorImpl", superName = DESCRIPTOR, methods = listOf(ctor), innerOf = "t/Owner", annotationSpecs = listOf(AnnSpec(sym, mapOf("value" to listOf("o")))))
+        val r = one(mapOf("t/Owner\$DescriptorImpl" to d, "t/Owner" to describable("t/Owner"), "t/Unrelated" to describable("t/Unrelated")), "t.Owner\$DescriptorImpl")
+        assertEquals("t/Owner", r.describableClass?.internal)
+    }
+
+    @Test
+    fun wrapperGlobalSetDeclarativeAndPostConditionKinds() {
+        val classes =
+            mapOf(
+                "t/W" to Fixtures.classBytes("t/W", superName = "jenkins/tasks/SimpleBuildWrapper", methods = listOf(Stubs.ctor("jenkins/tasks/SimpleBuildWrapper"))),
+                "t/W\$DescriptorImpl" to plainDescriptor("t/W\$DescriptorImpl", "t/W", "w"),
+                "t/Vars" to Fixtures.classBytes("t/Vars", superName = Types.GLOBAL_VARIABLE_SET, methods = listOf(Stubs.ctor(Types.GLOBAL_VARIABLE_SET))),
+                "t/A\$DescriptorImpl" to Fixtures.classBytes("t/A\$DescriptorImpl", superName = Types.AGENT_DESCRIPTOR, methods = listOf(Stubs.ctor(Types.AGENT_DESCRIPTOR)), innerOf = "t/A", annotationSpecs = listOf(AnnSpec(sym, mapOf("value" to listOf("any"))))),
+                "t/A" to describable("t/A"),
+                "t/Always" to Fixtures.classBytes("t/Always", superName = Types.BUILD_CONDITION, methods = listOf(Stubs.ctor(Types.BUILD_CONDITION)), annotationSpecs = listOf(AnnSpec(sym, mapOf("value" to listOf("always"))))),
+            )
+        val r = classify(classes, "t.W\$DescriptorImpl", "t.Vars", "t.A\$DescriptorImpl", "t.Always")
+        assertEquals(listOf(RecordKind.WRAP_WRAPPED_DESCRIBABLE, RecordKind.GLOBAL_VARIABLE, RecordKind.DECLARATIVE_ELEMENT, RecordKind.DECLARATIVE_ELEMENT), r.map { it.kind })
+        assertTrue(r[1].gaps.any { it.reason == "dynamic-global-set" })
+        assertEquals(listOf("agent"), r[2].declarativeDirectives)
+        assertEquals(listOf("post"), r[3].declarativeDirectives)
+        assertEquals(listOf("always"), r[3].symbols)
+        assertTrue(r[2].links.any { it.rel == LinkRel.SYNTAX && it.url.endsWith("#agent") })
+    }
+
+    @Test
+    fun aStepWithoutADescribableTypeCarriesAGap() {
+        val r = one(mapOf("t/D" to Fixtures.classBytes("t/D", superName = STEP_DESC, methods = listOf(Stubs.ctor(STEP_DESC), Stubs.returnString("getFunctionName", "d"), Stubs.contextEmpty()))), "t.D")
+        assertTrue(r.gaps.any { it.field == "describable_class" })
+        assertEquals(Confidence.INFERRED, r.confidence)
     }
 
     @Test
