@@ -17,4 +17,5 @@ dep	configuration-as-code	2031.veb_a_fdda_b_3ffd	https://updates.jenkins.io/down
 dep	cloudbees-folder	6.1100.ve9eed61d16c4	https://updates.jenkins.io/download/plugins/cloudbees-folder/6.1100.ve9eed61d16c4/cloudbees-folder.hpi	796f2ce5169f09c943743f056616759e9f51988d6b83140ec4b353cc8d6af3a0
 dep	docker-commons	477.v289085a_b_6896	https://updates.jenkins.io/download/plugins/docker-commons/477.v289085a_b_6896/docker-commons.hpi	695259df771b9182973cb0bc2f13657bd4f9e9efa9ec88ce65758e29d026fc8b
 dep	parameterized-trigger	873.v8b_e37dd8418f	https://updates.jenkins.io/download/plugins/parameterized-trigger/873.v8b_e37dd8418f/parameterized-trigger.hpi	cc8569c680abb3a4902b651f2ac083c0fc9421b577cc9a18e36fe6ed1effdb64
+dep	credentials	1480.v2246fd131e83	https://updates.jenkins.io/download/plugins/credentials/1480.v2246fd131e83/credentials.hpi	5d3e5e53a69716ecbe2b6d9b9c11b01cc031655ace517140db3649c37695c823
 core	jenkins-core	2.568.3	https://repo.jenkins-ci.org/releases/org/jenkins-ci/main/jenkins-core/2.568.3/jenkins-core-2.568.3.jar	39f608152bac08b402719f07591d63c254efc6553a91b5c991c513d74e4fdb19

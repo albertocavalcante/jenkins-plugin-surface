@@ -250,7 +250,7 @@ internal class Classifier(private val store: ClassStore, private val pluginId: S
 
     private fun callsDescriptorSelf(node: ClassNode): Boolean =
         node.methods.any { m ->
-            m.name == "<init>" && m.instructions.any { it is MethodInsnNode && it.owner == Types.DESCRIPTOR && it.name == "self" }
+            m.name == "<init>" && m.instructions.any { it is MethodInsnNode && it.name == "self" && it.desc == "()Ljava/lang/Class;" }
         }
 
     /** A class literal is accepted only as the sole argument of `super(Class)`, i.e. the instruction right before the call. */
