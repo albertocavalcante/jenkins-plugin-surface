@@ -138,6 +138,18 @@ class HelpHtmlTest {
     }
 
     @Test
+    fun backslashesInTextAreEscapedSoTheyCannotReopenLinkSyntax() {
+        val out = md("<p>\\[x\\](javascript:alert(1))</p>")
+        assertEquals("\\\\\\[x\\\\\\](javascript:alert(1))", out)
+    }
+
+    @Test
+    fun lineBreakInsideCodeBecomesASpaceAndBackslashSlashLinksAreRejected() {
+        assertEquals("`a b`", md("<code>a<br>b</code>"))
+        assertEquals("<a>x</a>", html("<a href=\"/\\evil.example\">x</a>"))
+    }
+
+    @Test
     fun outputIsStableAcrossRuns() {
         val input = "<p>A <b>b</b></p><ul><li>x<li>y</ul>"
         assertEquals(html(input), html(input))

@@ -51,7 +51,7 @@ private fun safeHref(raw: String): String? {
     val ok =
         lower.startsWith("http://") || lower.startsWith("https://") || lower.startsWith("mailto:") || href.startsWith("#") || (href.startsWith("/") && !href.startsWith("//")) ||
             (':' !in href.substringBefore('/'))
-    return if (ok && !href.startsWith("//") && !lower.startsWith("javascript:") && !lower.startsWith("data:")) href else null
+    return if (ok && !href.startsWith("//") && !href.startsWith("/\\") && !lower.startsWith("javascript:") && !lower.startsWith("data:")) href else null
 }
 
 private class RawTag(val name: String, val closing: Boolean, val href: String?, val selfClosing: Boolean)
@@ -193,7 +193,7 @@ internal fun toHtml(events: List<Ev>): String =
         }
     }
 
-private val MD_SPECIAL: Regex = Regex("([\\`*_\\[\\]<>])")
+private val MD_SPECIAL: Regex = Regex("([\\\\`*_\\[\\]<>])")
 private val INLINE_TAGS: Set<String> = setOf("b", "strong", "i", "em", "code", "kbd", "a")
 private val BREAKING_TAGS: Set<String> = BLOCKS + setOf("li", "dt", "dd")
 
@@ -244,7 +244,12 @@ internal fun toMarkdown(events: List<Ev>): String {
                         out.append(if (out.isEmpty() || out.endsWith("\n")) escaped.trimStart() else escaped)
                     }
                 }
-            Ev.Br -> if (inPre != null) inPre.append('\n') else out.append("  \n")
+            Ev.Br ->
+                when {
+                    inPre != null -> inPre.append('\n')
+                    inCode != null -> inCode.append(' ')
+                    else -> out.append("  \n")
+                }
             is Ev.Open ->
                 if (inPre != null || inCode != null) {
                     Unit
