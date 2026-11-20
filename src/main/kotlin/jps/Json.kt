@@ -4,22 +4,22 @@ package jps
 /** Minimal JSON tree with a deterministic writer (sorted keys, fixed indentation, no timestamps). */
 internal sealed interface Json {
     @JvmInline
-    internal value class Str(val value: String) : Json
+    value class Str(val value: String) : Json
 
     /** Numbers keep their raw text so integers never gain a fraction. */
     @JvmInline
-    internal value class Num(val raw: String) : Json
+    value class Num(val raw: String) : Json
 
     @JvmInline
-    internal value class Bool(val value: Boolean) : Json
+    value class Bool(val value: Boolean) : Json
 
-    internal data object Null : Json
-
-    @JvmInline
-    internal value class Arr(val items: List<Json>) : Json
+    data object Null : Json
 
     @JvmInline
-    internal value class Obj(val fields: Map<String, Json>) : Json
+    value class Arr(val items: List<Json>) : Json
+
+    @JvmInline
+    value class Obj(val fields: Map<String, Json>) : Json
 }
 
 internal fun jstr(value: String): Json = Json.Str(value)
