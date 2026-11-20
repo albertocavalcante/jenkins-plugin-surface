@@ -36,9 +36,10 @@ private val DECLARATIVE_BASES: List<Pair<String, String>> =
  * Turns every enumerated extension into exactly one record. Positive facts come from supertype names found while
  * walking the hierarchy; a negative claim ("not pipeline facing") requires the whole hierarchy to be resolved.
  */
-internal class Classifier(private val store: ClassStore, private val pluginId: String) {
+internal class Classifier(private val store: ClassStore, private val pluginId: String, noHelpText: Boolean = false) {
     private val interp = Interp(store)
     private val params = ParamExtractor(store)
+    private val help = HelpFinder(store, includeBodies = !noHelpText)
 
     fun classify(ref: ExtensionRef): Record {
         val skeleton = skeleton(ref)
@@ -168,7 +169,7 @@ internal class Classifier(private val store: ClassStore, private val pluginId: S
 
     /** Fixes the id, confidence and links once the kind is known. */
     private fun finish(input: Record, evidence: List<String>): Record {
-        val record = withParameters(input)
+        val record = withDocs(withParameters(input))
         val key = record.id.removePrefix("pending:")
         val confidence = if (record.gaps.isEmpty()) Confidence.EXACT else Confidence.INFERRED
         return record.copy(
@@ -185,6 +186,13 @@ internal class Classifier(private val store: ClassStore, private val pluginId: S
         val result = params.parametersOf(describable)
         val step = record.step?.let { facts -> if (facts.metastep == true) facts.copy(metastepArgumentType = result.firstConstructorType) else facts }
         return record.copy(parameters = result.parameters, gaps = record.gaps + result.gaps, step = step)
+    }
+
+    private fun withDocs(record: Record): Record {
+        if (record.kind == RecordKind.NOT_PIPELINE_FACING || record.kind == RecordKind.UNKNOWN) return record
+        val source = (record.describableClass ?: record.extensionClass).internal
+        val withParams = record.parameters.map { it.copy(docs = help.docsFor(source, it.name).takeIf { d -> d.status != DocsStatus.ABSENT }) }
+        return record.copy(docs = help.docsFor(source, null), parameters = withParams)
     }
 
     private fun linksFor(record: Record): List<Link> {
