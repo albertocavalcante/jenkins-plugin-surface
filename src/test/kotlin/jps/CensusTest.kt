@@ -107,6 +107,27 @@ class CensusTest {
     }
 
     @Test
+    fun inheritedAnnotationEntriesInTheIndexerFileAreExplainedNotIgnored() {
+        val exported = "Lorg/kohsuke/stapler/export/ExportedBean;"
+        val entries =
+            mapOf(
+                "a/Parent.class" to Fixtures.classBytes("a/Parent", annotations = listOf(exported)),
+                "a/Child.class" to Fixtures.classBytes("a/Child", superName = "a/Parent"),
+                "a/Stray.class" to Fixtures.classBytes("a/Stray"),
+                "META-INF/services/annotations/org.kohsuke.stapler.export.ExportedBean" to "a.Child\na.Parent\na.Stray\n".toByteArray(),
+            )
+        val c = container(entries)
+        val store = ClassStore(listOf(c), emptyList())
+        val file =
+            runCensus(listOf(c)) { name, annotation ->
+                store.closure(name.replace('.', '/')).visited.any { it != name.replace('.', '/') && store.load(it)?.node?.let { n -> annotationsOf(n).any { a -> a.desc == "L" + annotation.replace('.', '/') + ";" } } == true }
+            }.jars.single().files.single()
+        assertEquals(listOf("a.Child"), file.explainedByInheritance)
+        assertEquals(listOf("a.Stray"), file.onlyInIndex)
+        assertFalse(file.agree)
+    }
+
+    @Test
     fun extensionsAreDeduplicatedAcrossAnnotations() {
         val optional = "Lorg/jenkinsci/plugins/variant/OptionalExtension;"
         val both = Fixtures.classBytes("a/B", annotations = listOf(Fixtures.EXT, optional))

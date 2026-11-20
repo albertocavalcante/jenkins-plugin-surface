@@ -226,7 +226,8 @@
                     "scan_count": { "type": "integer" },
                     "agree": { "type": "boolean" },
                     "only_in_index": { "type": "array", "items": { "type": "string" } },
-                    "only_in_scan": { "type": "array", "items": { "type": "string" } }
+                    "only_in_scan": { "type": "array", "items": { "type": "string" } },
+                    "explained_by_inheritance": { "type": "array", "items": { "type": "string" } }
                   }
                 }
               }

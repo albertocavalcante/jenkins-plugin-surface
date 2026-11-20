@@ -105,7 +105,7 @@ private fun compare(file: String, annotation: String, source: IndexSource, index
  * Enumerates extensions twice per container: from the index files under META-INF/annotations and
  * META-INF/services/annotations, and from an annotation scan of the class files.
  */
-internal fun runCensus(containers: List<Container>): CensusResult {
+internal fun runCensus(containers: List<Container>, inheritedCheck: (className: String, annotation: String) -> Boolean = { _, _ -> false }): CensusResult {
     val jars = mutableListOf<JarCensus>()
     val found = linkedMapOf<String, ExtensionRef>()
     for (container in containers) {
@@ -137,7 +137,10 @@ internal fun runCensus(containers: List<Container>): CensusResult {
             if (!name.startsWith(INDEXER_PREFIX)) continue
             val annotation = name.removePrefix(INDEXER_PREFIX)
             if (annotation.isEmpty() || '/' in annotation) continue
-            files.add(compare(name, annotation, IndexSource.ANNOTATION_INDEXER, parseIndexerText(text(bytes)), scan.classes[descriptorOf(annotation)].orEmpty()))
+            val raw = compare(name, annotation, IndexSource.ANNOTATION_INDEXER, parseIndexerText(text(bytes)), scan.classes[descriptorOf(annotation)].orEmpty())
+            // Annotation-indexer also lists subclasses of classes carrying an @Inherited annotation; verify each such claim.
+            val explained = raw.onlyInIndex.filter { inheritedCheck(it, annotation) }
+            files.add(raw.copy(onlyInIndex = raw.onlyInIndex - explained.toSet(), explainedByInheritance = explained))
         }
         for (annotation in EXTENSION_ANNOTATIONS) {
             if (annotation in indexedAnnotations) continue

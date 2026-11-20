@@ -25,6 +25,7 @@ private val SHARED_DIRECTIVES: List<Pair<String, String>> =
         Types.JOB_PROPERTY_DESCRIPTOR to "options",
     )
 
+// FIXME(#11): WHEN_DESCRIPTOR and BUILD_CONDITION names are not yet verified against a real archive.
 private val DECLARATIVE_BASES: List<Pair<String, String>> =
     listOf(
         Types.AGENT_DESCRIPTOR to "agent",
@@ -55,7 +56,7 @@ internal class Classifier(private val store: ClassStore, private val pluginId: S
                 argsRewritten = Types.CUSTOM_DESCRIBABLE_MODEL in closure,
                 gaps = hierarchyGap,
             )
-        val isDescriptor = Types.DESCRIPTOR in closure
+        val isDescriptor = Types.DESCRIPTOR in closure || Types.STEP_DESCRIPTOR in closure || DECLARATIVE_BASES.any { it.first in closure }
         return when {
             Types.BUILD_CONDITION in closure && !isDescriptor ->
                 declarative(withFacts, cls.node, listOf("post"), symbolsOf(cls.node), "class:${ref.className}")
@@ -240,11 +241,18 @@ internal class Classifier(private val store: ClassStore, private val pluginId: S
         while (current != null && current.node.name != Types.DESCRIPTOR) {
             val literal = classLiteralPassedToSuper(current.node)
             if (literal != null) return ClassName(literal)
+            // Descriptor.self(): the descriptor describes itself (GlobalConfiguration and friends).
+            if (callsDescriptorSelf(current.node)) return ClassName(cls.node.name)
             current = current.node.superName?.let { store.load(it) }
         }
         val outer = cls.node.innerClasses.firstOrNull { it.name == cls.node.name }?.outerName
         return outer?.let { ClassName(it) }
     }
+
+    private fun callsDescriptorSelf(node: ClassNode): Boolean =
+        node.methods.any { m ->
+            m.name == "<init>" && m.instructions.any { it is MethodInsnNode && it.name == "self" && it.desc == "()Ljava/lang/Class;" }
+        }
 
     /** A class literal is accepted only as the sole argument of `super(Class)`, i.e. the instruction right before the call. */
     private fun classLiteralPassedToSuper(node: ClassNode): String? {
