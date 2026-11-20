@@ -16,4 +16,5 @@ dep	matrix-project	870.v9db_fcfc2f45b_	https://updates.jenkins.io/download/plugi
 dep	configuration-as-code	2031.veb_a_fdda_b_3ffd	https://updates.jenkins.io/download/plugins/configuration-as-code/2031.veb_a_fdda_b_3ffd/configuration-as-code.hpi	01867074cf0a6cb8362c7c31208275e4af640c059515e07d671569a0f343f1b8
 dep	cloudbees-folder	6.1100.ve9eed61d16c4	https://updates.jenkins.io/download/plugins/cloudbees-folder/6.1100.ve9eed61d16c4/cloudbees-folder.hpi	796f2ce5169f09c943743f056616759e9f51988d6b83140ec4b353cc8d6af3a0
 dep	docker-commons	477.v289085a_b_6896	https://updates.jenkins.io/download/plugins/docker-commons/477.v289085a_b_6896/docker-commons.hpi	695259df771b9182973cb0bc2f13657bd4f9e9efa9ec88ce65758e29d026fc8b
+dep	parameterized-trigger	873.v8b_e37dd8418f	https://updates.jenkins.io/download/plugins/parameterized-trigger/873.v8b_e37dd8418f/parameterized-trigger.hpi	cc8569c680abb3a4902b651f2ac083c0fc9421b577cc9a18e36fe6ed1effdb64
 core	jenkins-core	2.568.3	https://repo.jenkins-ci.org/releases/org/jenkins-ci/main/jenkins-core/2.568.3/jenkins-core-2.568.3.jar	39f608152bac08b402719f07591d63c254efc6553a91b5c991c513d74e4fdb19

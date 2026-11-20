@@ -54,7 +54,7 @@ class CorpusTest {
     }
 
     private fun extract(pin: Pin, out: Path): Int {
-        val deps = pins.filter { it.role == "dep" && it.id != pin.id }.flatMap { listOf("--dep", files.getValue(it.id).toString()) }
+        val deps = pins.filter { (it.role == "dep" || it.role == "target") && it.id != pin.id }.flatMap { listOf("--dep", files.getValue(it.id).toString()) }
         val core = pins.single { it.role == "core" }
         val args = listOf("extract", "--hpi", files.getValue(pin.id).toString(), "--core", files.getValue(core.id).toString(), "--out", out.toString()) + deps
         val sink = PrintStream(ByteArrayOutputStream())
@@ -195,9 +195,10 @@ class CorpusTest {
 
     @Test
     fun docsAndLinksArePresent() {
-        val echo = step(doc("workflow-basic-steps"), "echo")
-        assertEquals("present", str(obj(echo["docs"])["status"]))
-        assertTrue(str(obj(echo["docs"])["summary"]).orEmpty().isNotBlank())
-        assertTrue((echo["links"] as Json.Arr).items.isNotEmpty())
+        val timeout = step(doc("workflow-basic-steps"), "timeout")
+        assertEquals("present", str(obj(timeout["docs"])["status"]))
+        assertTrue(str(obj(timeout["docs"])["summary"]).orEmpty().isNotBlank())
+        assertTrue((timeout["links"] as Json.Arr).items.isNotEmpty())
+        assertEquals("present", str(obj(params(timeout).getValue("time")["docs"])["status"]))
     }
 }

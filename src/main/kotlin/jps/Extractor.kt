@@ -18,8 +18,8 @@ internal class StaticExtractor : Extractor {
         val version = hpi.manifest["Plugin-Version"] ?: throw InputException("${hpi.fileName} has no Plugin-Version in manifest")
         val core = readArchive(args.core)
         val deps = args.deps.map { readArchive(it) }
-        val census = runCensus(hpi.containers)
         val store = ClassStore(hpi.containers, deps.flatMap { it.containers } + core.containers)
+        val census = runCensus(hpi.containers) { className, annotation -> ancestorHasAnnotation(store, className, annotation) }
         val classifier = Classifier(store, id, args.noHelpText)
         val records = census.extensions.map(classifier::classify)
         val unknown = records.count { it.kind == RecordKind.UNKNOWN }
@@ -49,5 +49,14 @@ internal class StaticExtractor : Extractor {
                     jars = census.jars,
                 ),
         )
+    }
+}
+
+/** True when a strict ancestor of [className] (dotted) carries [annotation] (dotted), which explains an inherited index entry. */
+private fun ancestorHasAnnotation(store: ClassStore, className: String, annotation: String): Boolean {
+    val self = className.replace('.', '/')
+    val descriptor = "L" + annotation.replace('.', '/') + ";"
+    return store.closure(self).visited.any { ancestor ->
+        ancestor != self && store.load(ancestor)?.node?.let { node -> annotationsOf(node).any { it.desc == descriptor } } == true
     }
 }

@@ -179,6 +179,8 @@ internal data class IndexFileCensus(
     val scanCount: Int,
     val onlyInIndex: List<String>,
     val onlyInScan: List<String>,
+    /** Index entries absent from the scan because an ancestor carries the (inherited) annotation. */
+    val explainedByInheritance: List<String> = emptyList(),
 ) {
     val agree: Boolean get() = onlyInIndex.isEmpty() && onlyInScan.isEmpty()
 }
@@ -296,6 +298,7 @@ private fun IndexFileCensus.json(): Json =
         "agree" to jbool(agree),
         "only_in_index" to jstrs(onlyInIndex.sorted()),
         "only_in_scan" to jstrs(onlyInScan.sorted()),
+        "explained_by_inheritance" to explainedByInheritance.takeIf { it.isNotEmpty() }?.let { jstrs(it.sorted()) },
     )
 
 private fun Census.json(): Json =
