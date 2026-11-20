@@ -1,0 +1,239 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "jenkins-plugin-surface/v1",
+  "description": "Static Pipeline-facing surface of one Jenkins plugin archive. Keys are sorted, arrays are sorted (parameters keep model order), no timestamps; paths are archive-relative.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "plugin", "generator", "records", "census"],
+  "properties": {
+    "schema": { "const": "jenkins-plugin-surface/v1" },
+    "plugin": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "version", "sha256", "dependencies"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "version": { "type": "string", "minLength": 1 },
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "required_core": { "type": "string" },
+        "dependencies": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "version", "optional"],
+            "properties": {
+              "id": { "type": "string" },
+              "version": { "type": "string" },
+              "optional": { "type": "boolean" }
+            }
+          }
+        }
+      }
+    },
+    "generator": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tool", "version", "engines", "core", "dependency_inputs"],
+      "properties": {
+        "tool": { "const": "jenkins-plugin-surface" },
+        "version": { "type": "string" },
+        "engines": { "type": "array", "items": { "type": "string" } },
+        "core": { "$ref": "#/$defs/input" },
+        "dependency_inputs": { "type": "array", "items": { "$ref": "#/$defs/input" } }
+      }
+    },
+    "records": { "type": "array", "items": { "$ref": "#/$defs/record" } },
+    "census": { "$ref": "#/$defs/census" }
+  },
+  "$defs": {
+    "input": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "sha256"],
+      "properties": {
+        "id": { "type": "string" },
+        "version": { "type": "string" },
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      }
+    },
+    "confidence": { "enum": ["exact", "inferred", "unknown"] },
+    "kind": {
+      "enum": [
+        "step",
+        "step-wrapped-describable",
+        "wrap-wrapped-describable",
+        "nested-only-symbol",
+        "global-variable",
+        "declarative-element",
+        "not-pipeline-facing",
+        "unknown"
+      ]
+    },
+    "gap": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["field", "reason"],
+      "properties": {
+        "field": { "type": "string" },
+        "reason": { "type": "string" },
+        "detail": { "type": "string" }
+      }
+    },
+    "type": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["category", "java"],
+      "properties": {
+        "category": { "enum": ["atomic", "enum", "array", "object", "unsupported"] },
+        "java": { "type": "string" },
+        "element": { "$ref": "#/$defs/type" },
+        "enum_values": { "type": "array", "items": { "type": "string" } },
+        "nested_type": { "type": "string" }
+      }
+    },
+    "docs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status"],
+      "properties": {
+        "status": { "enum": ["present", "dynamic", "absent"] },
+        "summary": { "type": "string" },
+        "body_html": { "type": "string" },
+        "body_markdown": { "type": "string" },
+        "locale": { "type": "string" },
+        "source": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "path"],
+          "properties": { "kind": { "type": "string" }, "path": { "type": "string" } }
+        }
+      }
+    },
+    "parameter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "type", "model_required", "usage_hint", "deprecated", "origin"],
+      "properties": {
+        "name": { "type": "string" },
+        "type": { "$ref": "#/$defs/type" },
+        "model_required": {
+          "type": "boolean",
+          "description": "Exact: DescribableParameter.isRequired() is 'has no setter'. It overstates real requiredness."
+        },
+        "usage_hint": { "enum": ["unknown", "nullable"] },
+        "usage_hint_evidence": { "type": "string" },
+        "deprecated": { "type": "boolean" },
+        "origin": { "enum": ["constructor", "setter-field", "setter-method"] },
+        "names_source": { "type": "string" },
+        "docs": { "$ref": "#/$defs/docs" }
+      }
+    },
+    "step": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "takes_block": { "type": "boolean" },
+        "required_context": { "type": "array", "items": { "type": "string" } },
+        "advanced": { "type": "boolean" },
+        "metastep": { "type": "boolean" },
+        "metastep_argument_type": { "type": "string" }
+      }
+    },
+    "extension": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["annotation", "optional", "requirements"],
+      "properties": {
+        "annotation": { "type": "string" },
+        "ordinal": { "type": "number" },
+        "optional": { "type": "boolean" },
+        "requirements": { "type": "array", "items": { "type": "string" } },
+        "dynamic_loadable": { "type": "string" }
+      }
+    },
+    "record": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id", "kind", "extension_class", "symbols", "confidence", "evidence", "gaps",
+        "args_rewritten", "dynamic_dispatch", "optional_extension", "declarative_directives",
+        "parameters", "links"
+      ],
+      "properties": {
+        "id": { "type": "string" },
+        "kind": { "$ref": "#/$defs/kind" },
+        "extension_class": { "type": "string" },
+        "describable_class": { "type": "string" },
+        "name": { "type": "string" },
+        "symbols": { "type": "array", "items": { "type": "string" } },
+        "confidence": { "$ref": "#/$defs/confidence" },
+        "evidence": { "type": "array", "items": { "type": "string" } },
+        "reason": { "type": "string" },
+        "gaps": { "type": "array", "items": { "$ref": "#/$defs/gap" } },
+        "step": { "$ref": "#/$defs/step" },
+        "args_rewritten": { "type": "boolean" },
+        "dynamic_dispatch": { "type": "boolean" },
+        "optional_extension": { "type": "boolean" },
+        "declarative_directives": { "type": "array", "items": { "type": "string" } },
+        "extension": { "$ref": "#/$defs/extension" },
+        "parameters": { "type": "array", "items": { "$ref": "#/$defs/parameter" } },
+        "docs": { "$ref": "#/$defs/docs" },
+        "links": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["rel", "url"],
+            "properties": {
+              "rel": { "enum": ["reference", "syntax", "plugin", "javadoc", "controller"] },
+              "url": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "census": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["extensions_seen", "classified", "unknown", "not_pipeline_facing", "index_scan_agree", "jars"],
+      "properties": {
+        "extensions_seen": { "type": "integer" },
+        "classified": { "type": "integer" },
+        "unknown": { "type": "integer" },
+        "not_pipeline_facing": { "type": "integer" },
+        "index_scan_agree": { "type": "boolean" },
+        "jars": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path", "agree", "files"],
+            "properties": {
+              "path": { "type": "string" },
+              "agree": { "type": "boolean" },
+              "files": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["file", "annotation", "source", "index_count", "scan_count", "agree", "only_in_index", "only_in_scan"],
+                  "properties": {
+                    "file": { "type": "string" },
+                    "annotation": { "type": "string" },
+                    "source": { "enum": ["sezpoz-txt", "annotation-indexer", "bytecode-scan", "sezpoz-bin-unreadable"] },
+                    "index_count": { "type": "integer" },
+                    "scan_count": { "type": "integer" },
+                    "agree": { "type": "boolean" },
+                    "only_in_index": { "type": "array", "items": { "type": "string" } },
+                    "only_in_scan": { "type": "array", "items": { "type": "string" } }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
