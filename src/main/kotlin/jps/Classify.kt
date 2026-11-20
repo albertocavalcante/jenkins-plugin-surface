@@ -6,6 +6,15 @@ import org.objectweb.asm.tree.ClassNode
 import org.objectweb.asm.tree.LdcInsnNode
 import org.objectweb.asm.tree.MethodInsnNode
 
+private val PARAMETER_KINDS: Set<RecordKind> =
+    setOf(
+        RecordKind.STEP,
+        RecordKind.STEP_WRAPPED_DESCRIBABLE,
+        RecordKind.WRAP_WRAPPED_DESCRIBABLE,
+        RecordKind.NESTED_ONLY_SYMBOL,
+        RecordKind.DECLARATIVE_ELEMENT,
+    )
+
 private val DYNAMIC_METHODS: Set<String> = setOf("invokeMethod", "methodMissing", "propertyMissing")
 
 private val SHARED_DIRECTIVES: List<Pair<String, String>> =
@@ -29,6 +38,7 @@ private val DECLARATIVE_BASES: List<Pair<String, String>> =
  */
 internal class Classifier(private val store: ClassStore, private val pluginId: String) {
     private val interp = Interp(store)
+    private val params = ParamExtractor(store)
 
     fun classify(ref: ExtensionRef): Record {
         val skeleton = skeleton(ref)
@@ -157,7 +167,8 @@ internal class Classifier(private val store: ClassStore, private val pluginId: S
         )
 
     /** Fixes the id, confidence and links once the kind is known. */
-    private fun finish(record: Record, evidence: List<String>): Record {
+    private fun finish(input: Record, evidence: List<String>): Record {
+        val record = withParameters(input)
         val key = record.id.removePrefix("pending:")
         val confidence = if (record.gaps.isEmpty()) Confidence.EXACT else Confidence.INFERRED
         return record.copy(
@@ -166,6 +177,14 @@ internal class Classifier(private val store: ClassStore, private val pluginId: S
             evidence = (record.evidence + evidence).distinct(),
             links = linksFor(record),
         )
+    }
+
+    private fun withParameters(record: Record): Record {
+        if (record.kind !in PARAMETER_KINDS) return record
+        val describable = record.describableClass ?: return record.copy(gaps = record.gaps + Gap("parameters", "describable-type-unresolved"))
+        val result = params.parametersOf(describable)
+        val step = record.step?.let { facts -> if (facts.metastep == true) facts.copy(metastepArgumentType = result.firstConstructorType) else facts }
+        return record.copy(parameters = result.parameters, gaps = record.gaps + result.gaps, step = step)
     }
 
     private fun linksFor(record: Record): List<Link> {
