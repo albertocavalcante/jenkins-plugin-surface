@@ -20,6 +20,9 @@ internal object Fixtures {
         val access: Int = Opcodes.ACC_PUBLIC,
     )
 
+    /** An annotation with simple values: String, Boolean, Double or List of String. */
+    class AnnSpec(val descriptor: String, val values: Map<String, Any> = emptyMap())
+
     class FieldSpec(val name: String, val descriptor: String, val annotations: List<String> = emptyList())
 
     fun classBytes(
@@ -30,10 +33,27 @@ internal object Fixtures {
         methods: List<MethodSpec> = emptyList(),
         fields: List<FieldSpec> = emptyList(),
         access: Int = Opcodes.ACC_PUBLIC,
+        annotationSpecs: List<AnnSpec> = emptyList(),
+        innerOf: String? = null,
     ): ByteArray {
         val writer = ClassWriter(ClassWriter.COMPUTE_MAXS)
         writer.visit(Opcodes.V17, access or Opcodes.ACC_SUPER, name, null, superName, interfaces.toTypedArray())
+        if (innerOf != null) writer.visitInnerClass(name, innerOf, name.substringAfterLast('$'), Opcodes.ACC_PUBLIC or Opcodes.ACC_STATIC)
         annotations.forEach { writer.visitAnnotation(it, true).visitEnd() }
+        for (spec in annotationSpecs) {
+            val av = writer.visitAnnotation(spec.descriptor, true)
+            for ((key, value) in spec.values) {
+                when (value) {
+                    is List<*> -> {
+                        val arr = av.visitArray(key)
+                        value.forEach { arr.visit(null, it) }
+                        arr.visitEnd()
+                    }
+                    else -> av.visit(key, value)
+                }
+            }
+            av.visitEnd()
+        }
         for (f in fields) {
             val fv = writer.visitField(Opcodes.ACC_PRIVATE, f.name, f.descriptor, null, null)
             f.annotations.forEach { fv.visitAnnotation(it, true).visitEnd() }

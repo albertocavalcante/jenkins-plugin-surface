@@ -12,6 +12,9 @@ import org.junit.jupiter.api.Test
 class CensusTest {
     private fun ext(name: String): ByteArray = Fixtures.classBytes(name, annotations = listOf(Fixtures.EXT))
 
+    /** An extension whose superclass is in no archive: classification must end in an unknown record. */
+    private fun lost(name: String): ByteArray = Fixtures.classBytes(name, superName = "missing/Base", annotations = listOf(Fixtures.EXT))
+
     private fun plain(name: String): ByteArray = Fixtures.classBytes(name)
 
     private fun container(entries: Map<String, ByteArray>): Container = Container("WEB-INF/lib/t.jar", entries)
@@ -201,7 +204,7 @@ class CensusTest {
     fun extractorIsByteDeterministicAndCountsUnknowns() {
         val dir = fixtureDir()
         try {
-            val hpi = Fixtures.hpi("demo", "1.2", mapOf("a/A.class" to ext("a/A"), "a/B.class" to ext("a/B")) + Fixtures.extensionIndex("a.A", "a.B"))
+            val hpi = Fixtures.hpi("demo", "1.2", mapOf("a/A.class" to lost("a/A"), "a/B.class" to lost("a/B")) + Fixtures.extensionIndex("a.A", "a.B"))
             assertEquals(ExitCode.GATE_FAILED, run(dir, hpi, out = "one"))
             assertEquals(ExitCode.GATE_FAILED, run(dir, hpi, out = "two"))
             val first = Files.readAllBytes(dir.resolve("one/demo-1.2.json"))
