@@ -51,7 +51,7 @@ private fun safeHref(raw: String): String? {
     val ok =
         lower.startsWith("http://") || lower.startsWith("https://") || lower.startsWith("mailto:") || href.startsWith("#") || (href.startsWith("/") && !href.startsWith("//")) ||
             (':' !in href.substringBefore('/'))
-    return if (ok && !lower.startsWith("javascript:") && !lower.startsWith("data:")) href else null
+    return if (ok && !href.startsWith("//") && !lower.startsWith("javascript:") && !lower.startsWith("data:")) href else null
 }
 
 private class RawTag(val name: String, val closing: Boolean, val href: String?, val selfClosing: Boolean)

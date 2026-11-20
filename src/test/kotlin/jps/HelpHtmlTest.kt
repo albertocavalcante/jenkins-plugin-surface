@@ -116,7 +116,7 @@ class HelpHtmlTest {
         assertEquals("<p>ok</p>", html("<p>ok</p><iframe src=x>bad</iframe><svg><text>bad</text></svg><object>bad</object>"))
         assertEquals("<p>ok</p>", html("<p>ok</p><script>never closed"))
         assertEquals("<p>ok</p>", html("<p>ok</p><!-- never closed"))
-        assertEquals("<p>a </p>", html("<p>a <b"))
+        assertEquals("<p>a &lt;b</p>", html("<p>a <b"))
     }
 
     @Test
