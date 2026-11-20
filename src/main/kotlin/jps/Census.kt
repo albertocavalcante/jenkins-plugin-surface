@@ -78,7 +78,8 @@ private fun scanContainer(container: Container): ScanResult {
         if (!name.endsWith(".class") || name.startsWith("META-INF/versions/")) continue
         try {
             ClassReader(bytes).accept(ScanVisitor(result), ClassReader.SKIP_CODE or ClassReader.SKIP_DEBUG or ClassReader.SKIP_FRAMES)
-        } catch (e: IllegalArgumentException) {
+        } catch (e: RuntimeException) {
+            if (e is InputException) throw e
             throw InputException("unreadable class $name in ${container.path}: ${e.message}", e)
         }
     }
@@ -117,6 +118,7 @@ internal fun runCensus(containers: List<Container>): CensusResult {
             val txt = container.entries["$file.txt"]
             val scanned = scan.elements[descriptorOf(annotation)].orEmpty()
             if (txt == null) {
+                indexedAnnotations.add(annotation)
                 files.add(IndexFileCensus(file, annotation, IndexSource.SEZPOZ_BIN_UNREADABLE, 0, scanned.size, listOf("<binary index without text sibling>"), emptyList()))
                 continue
             }
