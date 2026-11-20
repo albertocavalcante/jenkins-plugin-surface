@@ -1,8 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://example.invalid/jenkins-plugin-surface/v1.schema.json",
   "title": "jenkins-plugin-surface/v1",
-  "description": "Static Pipeline-facing surface of one Jenkins plugin archive. Keys are sorted, arrays are sorted (parameters keep model order), no timestamps, no absolute paths.",
+  "description": "Static Pipeline-facing surface of one Jenkins plugin archive. Keys are sorted, arrays are sorted (parameters keep model order), no timestamps; paths are archive-relative.",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema", "plugin", "generator", "records", "census"],

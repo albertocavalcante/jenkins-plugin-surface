@@ -88,7 +88,7 @@ internal data class Parameter(
     val usageHint: UsageHint = UsageHint.UNKNOWN,
     val usageHintEvidence: String? = null,
     val deprecated: Boolean = false,
-    val origin: String,
+    val origin: ParamOrigin,
     val namesSource: String? = null,
     val docs: Docs? = null,
 )
@@ -118,7 +118,28 @@ internal data class Docs(
     val source: DocsSource? = null,
 )
 
-internal data class Link(val rel: String, val url: String)
+internal enum class LinkRel(val wire: String) {
+    REFERENCE("reference"),
+    SYNTAX("syntax"),
+    PLUGIN("plugin"),
+    JAVADOC("javadoc"),
+    CONTROLLER("controller"),
+}
+
+internal data class Link(val rel: LinkRel, val url: String)
+
+internal enum class ParamOrigin(val wire: String) {
+    CONSTRUCTOR("constructor"),
+    SETTER_FIELD("setter-field"),
+    SETTER_METHOD("setter-method"),
+}
+
+internal enum class IndexSource(val wire: String) {
+    SEZPOZ_TXT("sezpoz-txt"),
+    ANNOTATION_INDEXER("annotation-indexer"),
+    BYTECODE_SCAN("bytecode-scan"),
+    SEZPOZ_BIN_UNREADABLE("sezpoz-bin-unreadable"),
+}
 
 internal data class ExtensionFacts(
     val annotation: String,
@@ -153,7 +174,7 @@ internal data class Record(
 internal data class IndexFileCensus(
     val file: String,
     val annotation: String,
-    val source: String,
+    val source: IndexSource,
     val indexCount: Int,
     val scanCount: Int,
     val onlyInIndex: List<String>,
@@ -218,7 +239,7 @@ private fun Parameter.json(): Json =
         "usage_hint" to jstr(usageHint.wire),
         "usage_hint_evidence" to usageHintEvidence?.let { jstr(it) },
         "deprecated" to jbool(deprecated),
-        "origin" to jstr(origin),
+        "origin" to jstr(origin.wire),
         "names_source" to namesSource?.let { jstr(it) },
         "docs" to docs?.json(),
     )
@@ -235,7 +256,7 @@ private fun StepFacts.json(): Json =
 private fun ExtensionFacts.json(): Json =
     jobj(
         "annotation" to jstr(annotation),
-        "ordinal" to ordinal?.let { Json.Num(it.toString()) },
+        "ordinal" to ordinal?.takeIf { it.isFinite() }?.let { Json.Num(it.toString()) },
         "optional" to jbool(optional),
         "requirements" to jstrs(requirements.sorted()),
         "dynamic_loadable" to dynamicLoadable?.let { jstr(it) },
@@ -262,14 +283,14 @@ internal fun Record.json(): Json =
         // Parameter order is the model order (constructor first, then setters alphabetically) and is meaningful.
         "parameters" to jarr(parameters.map { it.json() }),
         "docs" to docs?.json(),
-        "links" to jarr(links.sortedWith(compareBy({ it.rel }, { it.url })).map { jobj("rel" to jstr(it.rel), "url" to jstr(it.url)) }),
+        "links" to jarr(links.sortedWith(compareBy({ it.rel.wire }, { it.url })).map { jobj("rel" to jstr(it.rel.wire), "url" to jstr(it.url)) }),
     )
 
 private fun IndexFileCensus.json(): Json =
     jobj(
         "file" to jstr(file),
         "annotation" to jstr(annotation),
-        "source" to jstr(source),
+        "source" to jstr(source.wire),
         "index_count" to jint(indexCount),
         "scan_count" to jint(scanCount),
         "agree" to jbool(agree),
@@ -286,11 +307,11 @@ private fun Census.json(): Json =
         "index_scan_agree" to jbool(indexScanAgree),
         "jars" to
             jarr(
-                jars.sortedBy { it.path }.map { jar ->
+                jars.sortedWith(compareBy({ it.path }, { it.files.size })).map { jar ->
                     jobj(
                         "path" to jstr(jar.path),
                         "agree" to jbool(jar.agree),
-                        "files" to jarr(jar.files.sortedWith(compareBy({ it.file }, { it.source })).map { it.json() }),
+                        "files" to jarr(jar.files.sortedWith(compareBy({ it.file }, { it.annotation }, { it.source.wire })).map { it.json() }),
                     )
                 },
             ),
@@ -307,7 +328,7 @@ internal fun PluginSurface.json(): Json =
                 "required_core" to plugin.requiredCore?.let { jstr(it) },
                 "dependencies" to
                     jarr(
-                        plugin.dependencies.sortedBy { it.id.value }.map {
+                        plugin.dependencies.sortedWith(compareBy({ it.id.value }, { it.version }, { it.optional })).map {
                             jobj("id" to jstr(it.id.value), "version" to jstr(it.version), "optional" to jbool(it.optional))
                         },
                     ),
@@ -318,9 +339,9 @@ internal fun PluginSurface.json(): Json =
                 "version" to jstr(generator.toolVersion),
                 "engines" to jstrs(generator.engines.sorted()),
                 "core" to generator.core.json(),
-                "dependency_inputs" to jarr(generator.dependencyInputs.sortedBy { it.id }.map { it.json() }),
+                "dependency_inputs" to jarr(generator.dependencyInputs.sortedWith(compareBy({ it.id }, { it.version ?: "" }, { it.sha256.hex })).map { it.json() }),
             ),
-        "records" to jarr(records.sortedBy { it.id }.map { it.json() }),
+        "records" to jarr(records.sortedWith(compareBy({ it.id }, { it.kind.wire }, { it.extensionClass.internal })).map { it.json() }),
         "census" to census.json(),
     )
 

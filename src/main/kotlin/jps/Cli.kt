@@ -62,7 +62,7 @@ internal val USAGE_TEXT: String =
       1  census gate failed (unknown extension without --allow-unknown, or index/scan mismatch); output is written
       2  usage error
       3  input error (missing, unreadable or malformed archive)
-      4  internal error
+      4  internal error (including an unwritable output directory)
     """.trimIndent()
 
 internal fun parseArgs(argv: List<String>): ParseResult {
@@ -77,7 +77,7 @@ internal fun parseArgs(argv: List<String>): ParseResult {
     var allowUnknown = false
     var index = 1
     fun value(): String? {
-        val found = argv.getOrNull(index + 1)
+        val found = argv.getOrNull(index + 1)?.takeUnless { it.startsWith("--") }
         index += 2
         return found
     }
@@ -139,13 +139,26 @@ internal fun runCli(argv: List<String>, stdout: PrintStream, stderr: PrintStream
         } catch (e: InputException) {
             stderr.println("input error: ${e.message}")
             return ExitCode.INPUT
-        } catch (e: IllegalStateException) {
+        } catch (e: java.io.IOException) {
+            stderr.println("input error: ${e.message}")
+            return ExitCode.INPUT
+        } catch (e: java.io.UncheckedIOException) {
+            stderr.println("input error: ${e.message}")
+            return ExitCode.INPUT
+        } catch (e: RuntimeException) {
             stderr.println("internal error: ${e.message}")
             return ExitCode.INTERNAL
         }
-    Files.createDirectories(args.out)
-    val target = args.out.resolve("${safeFileName(surface.plugin.id.value)}-${safeFileName(surface.plugin.version)}.json")
-    Files.write(target, surface.render().toByteArray(Charsets.UTF_8))
+    try {
+        Files.createDirectories(args.out)
+        val target = args.out.resolve("${safeFileName(surface.plugin.id.value)}-${safeFileName(surface.plugin.version)}.json")
+        val temp = Files.createTempFile(args.out, ".surface-", ".tmp")
+        Files.write(temp, surface.render().toByteArray(Charsets.UTF_8))
+        Files.move(temp, target, java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+    } catch (e: java.io.IOException) {
+        stderr.println("internal error: cannot write output: ${e.message}")
+        return ExitCode.INTERNAL
+    }
     val census = surface.census
     stdout.println(
         "${surface.plugin.id.value} ${surface.plugin.version}: extensions=${census.extensionsSeen} " +

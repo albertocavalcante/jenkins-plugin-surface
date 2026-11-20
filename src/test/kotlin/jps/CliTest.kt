@@ -22,7 +22,7 @@ class CliTest {
 
     private fun surfaceWithUnknown(unknown: Int, agree: Boolean = true): PluginSurface {
         val s = Samples.surface()
-        val file = IndexFileCensus("f", "hudson.Extension", "sezpoz-txt", 1, 1, if (agree) emptyList() else listOf("x"), emptyList())
+        val file = IndexFileCensus("f", "hudson.Extension", IndexSource.SEZPOZ_TXT, 1, 1, if (agree) emptyList() else listOf("x"), emptyList())
         return s.copy(census = s.census.copy(unknown = unknown, jars = listOf(JarCensus("j", listOf(file)))))
     }
 
@@ -43,8 +43,11 @@ class CliTest {
         val dir = Files.createTempDirectory("jps-cli")
         try {
             assertEquals(ExitCode.GATE_FAILED, run(base(dir.toString())) { surfaceWithUnknown(2) }.code)
+            val written = dir.resolve("demo-1.0.json")
+            assertTrue(Files.exists(written), "output is written even when the gate fails")
+            assertEquals("jenkins-plugin-surface/v1", ((parseJson(String(Files.readAllBytes(written), Charsets.UTF_8)) as Json.Obj).fields["schema"] as Json.Str).value)
+            Files.delete(written)
             assertEquals(ExitCode.OK, run(base(dir.toString()) + "--allow-unknown") { surfaceWithUnknown(2) }.code)
-            assertTrue(Files.exists(dir.resolve("demo-1.0.json")), "output is written even when the gate fails")
         } finally {
             dir.toFile().deleteRecursively()
         }
@@ -81,6 +84,30 @@ class CliTest {
     }
 
     @Test
+    fun ioFailuresMapToDocumentedCodes() {
+        val dir = Files.createTempDirectory("jps-cli")
+        try {
+            assertEquals(ExitCode.INPUT, run(base(dir.toString())) { throw java.io.IOException("disk") }.code)
+            assertEquals(ExitCode.INTERNAL, run(base(dir.toString())) { throw UnsupportedOperationException("x") }.code)
+            val blocker = dir.resolve("file")
+            Files.write(blocker, byteArrayOf(1))
+            assertEquals(ExitCode.INTERNAL, run(base(blocker.resolve("sub").toString())) { Samples.surface() }.code)
+        } finally {
+            dir.toFile().deleteRecursively()
+        }
+    }
+
+    @Test
+    fun optionValueMayNotBeAnotherFlag() {
+        assertTrue(parseArgs(listOf("extract", "--hpi", "--core", "c", "--out", "o")) is ParseResult.Error)
+    }
+
+    @Test
+    fun toolVersionIsSemver() {
+        assertEquals(3, TOOL_VERSION.split('.').size)
+    }
+
+    @Test
     fun helpExitsZeroAndListsExitCodes() {
         val r = run(listOf("--help")) { Samples.surface() }
         assertEquals(ExitCode.OK, r.code)
@@ -91,7 +118,7 @@ class CliTest {
     fun parsesRepeatedDepsAndFlags() {
         val parsed = parseArgs(base("o") + listOf("--dep", "a.hpi", "--dep", "b.hpi", "--no-help-text", "--allow-unknown"))
         val args = (parsed as ParseResult.Ok).args
-        assertEquals(2, args.deps.size)
+        assertEquals(listOf("a.hpi", "b.hpi"), args.deps.map { it.toString() })
         assertTrue(args.noHelpText && args.allowUnknown)
     }
 }

@@ -28,7 +28,7 @@ internal object Samples {
                         "count",
                         TypeNode(TypeCategory.ATOMIC, "int"),
                         modelRequired = true,
-                        origin = "constructor",
+                        origin = ParamOrigin.CONSTRUCTOR,
                         namesSource = "stapler",
                     ),
                     Parameter(
@@ -41,11 +41,11 @@ internal object Samples {
                         modelRequired = false,
                         usageHint = UsageHint.NULLABLE,
                         usageHintEvidence = "CheckForNull on field conditions",
-                        origin = "setter-field",
+                        origin = ParamOrigin.SETTER_FIELD,
                     ),
                 ),
             docs = Docs(DocsStatus.PRESENT, "Retry the body.", "<p>Retry the body.</p>", "Retry the body.", "en", DocsSource("help-html", "demo/RetryStep/help.html")),
-            links = listOf(Link("plugin", "https://plugins.jenkins.io/demo/")),
+            links = listOf(Link(LinkRel.PLUGIN, "https://plugins.jenkins.io/demo/")),
         )
 
     fun surface(records: List<Record> = listOf(record())): PluginSurface =
@@ -69,7 +69,7 @@ internal object Samples {
                         listOf(
                             JarCensus(
                                 "WEB-INF/lib/demo.jar",
-                                listOf(IndexFileCensus("META-INF/annotations/hudson.Extension.txt", "hudson.Extension", "sezpoz-txt", 1, 1, emptyList(), emptyList())),
+                                listOf(IndexFileCensus("META-INF/annotations/hudson.Extension.txt", "hudson.Extension", IndexSource.SEZPOZ_TXT, 1, 1, emptyList(), emptyList())),
                             ),
                         ),
                 ),

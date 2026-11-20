@@ -176,10 +176,12 @@ private class JsonParser(private val text: String) {
                         'f' -> out.append('\u000c')
                         'u' -> {
                             if (position + 4 > text.length) throw JsonParseException("bad unicode escape")
-                            out.append(text.substring(position, position + 4).toInt(16).toChar())
+                            val code = text.substring(position, position + 4).toIntOrNull(16) ?: throw JsonParseException("bad unicode escape")
+                            out.append(code.toChar())
                             position += 4
                         }
-                        else -> out.append(esc)
+                        '"', '\\', '/' -> out.append(esc)
+                        else -> throw JsonParseException("bad escape at $position")
                     }
                 }
                 else -> out.append(ch)

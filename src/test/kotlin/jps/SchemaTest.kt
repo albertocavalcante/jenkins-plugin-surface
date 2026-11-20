@@ -18,8 +18,25 @@ class SchemaTest {
     }
 
     @Test
-    fun renderIsDeterministic() {
-        assertEquals(Samples.surface().render(), Samples.surface().render())
+    fun renderDoesNotDependOnInputOrder() {
+        val base = Samples.record()
+        val a = base.copy(id = "step:a", gaps = listOf(Gap("b", "r"), Gap("a", "r")), evidence = listOf("z", "y"), symbols = listOf("s2", "s1"),
+            links = listOf(Link(LinkRel.PLUGIN, "u2"), Link(LinkRel.JAVADOC, "u1")))
+        val b = base.copy(id = "step:b")
+        val straight = Samples.surface(listOf(a, b))
+        val shuffled = Samples.surface(listOf(b, a.copy(gaps = a.gaps.reversed(), evidence = a.evidence.reversed(), symbols = a.symbols.reversed(), links = a.links.reversed())))
+        assertEquals(straight.render(), shuffled.render())
+    }
+
+    @Test
+    fun mainSourcesNeverLoadClasses() {
+        val forbidden = listOf("ClassLoader", "Class.forName", "MethodHandles", "defineClass", "ServiceLoader")
+        Files.walk(Paths.get("src/main")).use { paths ->
+            paths.filter { it.toString().endsWith(".kt") }.forEach { file ->
+                val text = String(Files.readAllBytes(file), Charsets.UTF_8)
+                forbidden.forEach { assertTrue(!text.contains(it), "$file mentions $it") }
+            }
+        }
     }
 
     @Test
@@ -54,6 +71,7 @@ class SchemaTest {
     fun outputHasNoTimestampsOrAbsolutePaths() {
         val text = Samples.surface().render()
         assertTrue(!Regex("\\d{4}-\\d{2}-\\d{2}T").containsMatchIn(text))
-        assertTrue(!text.contains("\"/Users") && !text.contains("\"/home") && !text.contains(":\\\\"))
+        assertTrue(!Regex("(^|[^\\w.])/(Users|home|Volumes|private|tmp|var)/").containsMatchIn(text))
+        assertTrue(!Regex("[A-Za-z]:\\\\").containsMatchIn(text))
     }
 }

@@ -3,6 +3,14 @@ package jps
 
 /** A small JSON Schema subset validator (enough for schema/jenkins-plugin-surface-v1.schema.json). */
 internal class SchemaValidator(private val root: Json) {
+    private companion object {
+        val SUPPORTED: Set<String> =
+            setOf(
+                "\$schema", "\$ref", "\$defs", "title", "description", "type", "const", "enum", "required",
+                "properties", "additionalProperties", "items", "pattern", "minLength",
+            )
+    }
+
     fun validate(doc: Json): List<String> {
         val errors = mutableListOf<String>()
         check(root, doc, "$", errors)
@@ -34,6 +42,8 @@ internal class SchemaValidator(private val root: Json) {
 
     private fun check(schema: Json, value: Json, path: String, errors: MutableList<String>) {
         val fields = obj(schema) ?: error("schema at $path is not an object")
+        val unsupported = fields.keys - SUPPORTED
+        require(unsupported.isEmpty()) { "unsupported schema keywords at $path: $unsupported" }
         fields["\$ref"]?.let { ref ->
             check(resolve((ref as Json.Str).value), value, path, errors)
             return
