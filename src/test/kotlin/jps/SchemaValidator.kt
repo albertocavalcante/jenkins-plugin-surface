@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package jps
 
 /** A small JSON Schema subset validator (enough for schema/jenkins-plugin-surface-v1.schema.json). */

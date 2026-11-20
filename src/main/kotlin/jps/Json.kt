@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package jps
 
 /** Minimal JSON tree with a deterministic writer (sorted keys, fixed indentation, no timestamps). */
