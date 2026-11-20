@@ -5,25 +5,32 @@ package jps
  * Finds the help resources Jenkins would show for a class (`help.html`, `help-<param>.html` beside the class,
  * searched up the superclass chain) and turns them into [Docs]. Script and Jelly help is flagged, never executed.
  */
+private const val MAX_HELP_BYTES: Int = 1024 * 1024
+
 internal class HelpFinder(private val store: ClassStore, private val includeBodies: Boolean) {
     fun docsFor(start: String, parameter: String?): Docs {
         val stem = if (parameter == null) "help" else "help-$parameter"
-        var dynamic: DocsSource? = null
+        val seen = mutableSetOf<String>()
         var current: String? = start
-        while (current != null && current != Types.OBJECT && !current.startsWith("java/")) {
+        // The nearest class wins; within a class static HTML beats script or Jelly help.
+        while (current != null && current != Types.OBJECT && !current.startsWith("java/") && seen.add(current)) {
             val cls = store.load(current) ?: break
-            for (dir in directories(current)) {
-                val html = cls.container.entries["$dir/$stem.html"]
-                if (html != null) return fromHtml(String(html, Charsets.UTF_8), DocsSource("help-html", "${cls.container.path}!/$dir/$stem.html"))
-                if (dynamic == null) {
-                    for (ext in listOf("jelly", "groovy")) {
-                        if (cls.container.entries.containsKey("$dir/$stem.$ext")) dynamic = DocsSource("help-$ext", "${cls.container.path}!/$dir/$stem.$ext")
+            val dirs = directories(current)
+            for (dir in dirs) {
+                val html = cls.container.entries["$dir/$stem.html"] ?: continue
+                if (html.size > MAX_HELP_BYTES) return Docs(DocsStatus.ABSENT, source = DocsSource("help-html-too-large", "${cls.container.path}!/$dir/$stem.html"))
+                return fromHtml(String(html, Charsets.UTF_8), DocsSource("help-html", "${cls.container.path}!/$dir/$stem.html"))
+            }
+            for (dir in dirs) {
+                for (ext in listOf("jelly", "groovy")) {
+                    if (cls.container.entries.containsKey("$dir/$stem.$ext")) {
+                        return Docs(DocsStatus.DYNAMIC, source = DocsSource("help-$ext", "${cls.container.path}!/$dir/$stem.$ext"))
                     }
                 }
             }
             current = cls.node.superName
         }
-        return if (dynamic != null) Docs(DocsStatus.DYNAMIC, source = dynamic) else Docs(DocsStatus.ABSENT)
+        return Docs(DocsStatus.ABSENT)
     }
 
     /** `pkg/Outer/Inner` (Jenkins's rule) and `pkg/Inner` (Structs's simple-name rule). */

@@ -77,6 +77,30 @@ class HelpFinderTest {
     }
 
     @Test
+    fun cyclicSuperclassChainsTerminate() {
+        val a = "t/A" to Fixtures.classBytes("t/A", superName = "t/B")
+        val b = "t/B" to Fixtures.classBytes("t/B", superName = "t/A")
+        assertEquals(DocsStatus.ABSENT, finder(emptyMap(), true, a, b).docsFor("t/A", null).status)
+    }
+
+    @Test
+    fun nearestClassWinsAndGroovyHelpIsDynamic() {
+        val child = "t/Child" to Fixtures.classBytes("t/Child", superName = "t/Step")
+        val f = finder(mapOf("t/Step/help.html" to "<p>Parent.</p>", "t/Child/help.groovy" to "x"), true, step, child)
+        assertEquals(DocsStatus.DYNAMIC, f.docsFor("t/Child", null).status)
+        assertEquals("help-groovy", f.docsFor("t/Child", null).source?.kind)
+        assertEquals("Parent.", f.docsFor("t/Step", null).summary)
+    }
+
+    @Test
+    fun oversizedHelpIsNotParsed() {
+        val f = finder(mapOf("t/Step/help.html" to "<p>" + "x".repeat(2 * 1024 * 1024) + "</p>"), true, step)
+        val d = f.docsFor("t/Step", null)
+        assertEquals(DocsStatus.ABSENT, d.status)
+        assertEquals("help-html-too-large", d.source?.kind)
+    }
+
+    @Test
     fun nestedClassUsesSlashDirectories() {
         val nested = "t/Outer\$Inner" to Fixtures.classBytes("t/Outer\$Inner")
         val f = finder(mapOf("t/Outer/Inner/help.html" to "<p>Nested.</p>"), true, nested)

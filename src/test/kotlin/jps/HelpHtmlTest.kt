@@ -2,7 +2,7 @@
 package jps
 
 import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
 class HelpHtmlTest {
@@ -64,7 +64,7 @@ class HelpHtmlTest {
     @Test
     fun markdownEscapesSpecialCharactersInText() {
         assertEquals("a \\* b \\_c\\_ \\[x\\]", md("<p>a * b _c_ [x]</p>"))
-        assertFalse(md("<p>`x`</p>").startsWith("`"))
+        assertEquals("\\`x\\`", md("<p>`x`</p>"))
     }
 
     @Test
@@ -72,6 +72,69 @@ class HelpHtmlTest {
         assertEquals("Retries the body.", summaryOf(parseHelp("<p>Retries the   body. It does\nmore things.</p>")))
         assertEquals("No terminator here", summaryOf(parseHelp("<p>No terminator here</p>")))
         assertEquals(300, summaryOf(parseHelp("<p>" + "x".repeat(500) + "</p>")).length)
+    }
+
+    @Test
+    fun outputMatchesAGoldenStringForMessyInput() {
+        val input = "<p>A <b>b</b>  c</p><ul><li>x<li>y</ul><div>d</div>"
+        assertEquals("<p>A <b>b</b> c</p><ul><li>x</li><li>y</li></ul><p>d</p>", html(input))
+        assertEquals("A **b** c\n\n- x\n- y\n\nd", md(input))
+    }
+
+    @Test
+    fun aFenceInsidePreCannotEscapeTheCodeBlock() {
+        val out = md("<pre>```\n[x](javascript:alert(1))\n```</pre>")
+        assertEquals("````\n```\n[x](javascript:alert(1))\n```\n````", out)
+    }
+
+    @Test
+    fun inlineMarkupInsidePreAndCodeIsNotInterpreted() {
+        assertEquals("```\nbold and *x*\n```", md("<pre><b>bold</b> and *x*</pre>"))
+        assertEquals("Use `a_b*c` now.", md("<p>Use <code>a_b*c</code> now.</p>"))
+        assertEquals("`` `tick` ``", md("<code>`tick`</code>"))
+    }
+
+    @Test
+    fun blankLinesInsideFencesSurvive() {
+        assertEquals("```\na\n\n\n\nb\n```", md("<pre>a\n\n\n\nb</pre>"))
+    }
+
+    @Test
+    fun summarySeparatesBlocksAndDivs() {
+        assertEquals("One.", summaryOf(parseHelp("<p>One.</p><p>Two.</p>")))
+        assertEquals("Title Body.", summaryOf(parseHelp("<h2>Title</h2><p>Body.</p>")))
+        assertEquals("Count X", summaryOf(parseHelp("<div>Count</div><div>X</div>")))
+    }
+
+    @Test
+    fun listItemWithParagraphStaysOnOneLine() {
+        assertEquals("- x", md("<ul><li><p>x</p></li></ul>"))
+    }
+
+    @Test
+    fun dangerousContainersAndUnterminatedMarkupAreDropped() {
+        assertEquals("<p>ok</p>", html("<p>ok</p><iframe src=x>bad</iframe><svg><text>bad</text></svg><object>bad</object>"))
+        assertEquals("<p>ok</p>", html("<p>ok</p><script>never closed"))
+        assertEquals("<p>ok</p>", html("<p>ok</p><!-- never closed"))
+        assertEquals("<p>a </p>", html("<p>a <b"))
+    }
+
+    @Test
+    fun moreEntitiesAreDecodedAndProtocolRelativeLinksRejected() {
+        assertEquals("<p>a \u2014 b \u00a9</p>", html("<p>a &mdash; b &copy;</p>"))
+        assertEquals("<a>x</a>", html("<a href=\"//evil.example/x\">x</a>"))
+    }
+
+    @Test
+    fun adjacentTextAroundDroppedTagsIsNotDoubleSpaced() {
+        assertEquals("<p>a b</p>", html("<p>a <!--c--> b</p>"))
+    }
+
+    @Test
+    fun deepNestingIsBounded() {
+        val input = "<ul>".repeat(5000) + "<li>x</li>" + "</ul>".repeat(5000)
+        val events = parseHelp(input)
+        assertTrue(events.count { it is Ev.Open } <= 101)
     }
 
     @Test
