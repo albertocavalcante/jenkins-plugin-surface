@@ -20,6 +20,10 @@ private val ATOMIC_CLASSES: Set<String> =
         "java/lang/Short", "java/lang/Byte", "java/lang/Character", "java/net/URL", "hudson/model/Result",
     )
 
+/** JDK enums have no class bytes in any input; their constants are a fact of the JDK, listed here. */
+private val JDK_ENUMS: Map<String, List<String>> =
+    mapOf("java/util/concurrent/TimeUnit" to listOf("NANOSECONDS", "MICROSECONDS", "MILLISECONDS", "SECONDS", "MINUTES", "HOURS", "DAYS"))
+
 private val COLLECTION_CLASSES: Set<String> = setOf("java/util/Collection", "java/util/List", "java/util/Set", "java/util/SortedSet")
 
 internal class ParamResult(val parameters: List<Parameter>, val gaps: List<Gap>, val firstConstructorType: ClassName?)
@@ -183,7 +187,11 @@ internal class ParamExtractor(private val store: ClassStore) {
                 TypeNode(TypeCategory.ARRAY, java, element = typeOf(element, param, gaps))
             }
         }
-        if (name.startsWith("java/")) return TypeNode(TypeCategory.UNSUPPORTED, java)
+        JDK_ENUMS[name]?.let { return TypeNode(TypeCategory.ENUM, java, enumValues = it) }
+        if (name.startsWith("java/")) {
+            if (name != "java/util/Map") gaps.add(Gap("parameters.$param.type", "jdk-type-not-modelled", name))
+            return TypeNode(TypeCategory.UNSUPPORTED, java)
+        }
         val loaded = store.load(name)
         if (loaded == null) {
             gaps.add(Gap("parameters.$param.type", "unresolvable-type", name))
