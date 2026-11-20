@@ -47,7 +47,7 @@ private fun readZip(bytes: ByteArray, what: String): Map<String, ByteArray> {
 }
 
 /**
- * Reads a plugin archive (`WEB-INF/lib/*.jar` layout) or a plain jar. Containers are sorted by path so every
+ * Reads a plugin archive (WEB-INF/lib jar layout) or a plain jar. Containers are sorted by path so every
  * downstream traversal is deterministic. With [loadContainers] false only identity (hash, manifest) is read.
  */
 internal fun readArchive(path: Path, loadContainers: Boolean = true): LoadedArchive {

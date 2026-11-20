@@ -99,8 +99,8 @@ private fun compare(file: String, annotation: String, source: IndexSource, index
     IndexFileCensus(file, annotation, source, index.size, scan.size, (index - scan).sorted(), (scan - index).sorted())
 
 /**
- * Enumerates extensions twice per container: from every `META-INF/annotations/*` and
- * `META-INF/services/annotations/*` index file, and from an annotation scan of the class files.
+ * Enumerates extensions twice per container: from the index files under META-INF/annotations and
+ * META-INF/services/annotations, and from an annotation scan of the class files.
  */
 internal fun runCensus(containers: List<Container>): CensusResult {
     val jars = mutableListOf<JarCensus>()
