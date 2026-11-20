@@ -170,6 +170,6 @@ internal fun runCli(argv: List<String>, stdout: PrintStream, stderr: PrintStream
 }
 
 public fun main(args: Array<String>) {
-    val extractor = Extractor { throw IllegalStateException("extraction engine not implemented yet") }
+    val extractor = StaticExtractor()
     exitProcess(runCli(args.toList(), System.out, System.err, extractor))
 }
