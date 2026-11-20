@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package jps
 
-import jps.Fixtures.AnnSpec
 import jps.Fixtures.FieldSpec
 import jps.Fixtures.MethodSpec
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -11,7 +10,6 @@ import org.objectweb.asm.Label
 import org.objectweb.asm.Opcodes
 
 class ParamsTest {
-    private val dbc = Fixtures.AnnSpec("Lorg/kohsuke/stapler/DataBoundConstructor;")
     private val dbs = "Lorg/kohsuke/stapler/DataBoundSetter;"
 
     private fun ctor(desc: String, signature: String? = null, paramNames: List<String> = emptyList(), body: (org.objectweb.asm.MethodVisitor) -> Unit = { it.visitInsn(Opcodes.RETURN) }) =
@@ -172,11 +170,5 @@ class ParamsTest {
         assertEquals(true, record.step?.metastep)
         assertEquals("jenkins/tasks/SimpleBuildStep", record.step?.metastepArgumentType?.internal)
         assertEquals(listOf("delegate"), record.parameters.map { it.name })
-    }
-
-    @Test
-    fun sampleAnnotationHelperCompiles() {
-        assertEquals("Lorg/kohsuke/stapler/DataBoundConstructor;", dbc.descriptor)
-        assertEquals(AnnSpec::class, dbc::class)
     }
 }
